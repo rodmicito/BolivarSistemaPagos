@@ -37,21 +37,21 @@ export default function Pagos() {
   };
 
   const getStatusBadge = (estado: string) => {
-    if (estado === 'Pagado') return <span className="flex items-center gap-1 text-green-700 bg-green-100 px-2 py-1 rounded-full text-xs font-medium"><CheckCircle size={14}/> Pagado</span>;
-    if (estado === 'Vencido') return <span className="flex items-center gap-1 text-red-700 bg-red-100 px-2 py-1 rounded-full text-xs font-medium"><AlertTriangle size={14}/> Vencido</span>;
-    return <span className="flex items-center gap-1 text-yellow-700 bg-yellow-100 px-2 py-1 rounded-full text-xs font-medium"><Clock size={14}/> Pendiente</span>;
+    if (estado === 'Pagado') return <span className="flex items-center gap-1 text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-full text-xs font-medium transition-colors"><CheckCircle size={14}/> Pagado</span>;
+    if (estado === 'Vencido') return <span className="flex items-center gap-1 text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded-full text-xs font-medium transition-colors"><AlertTriangle size={14}/> Vencido</span>;
+    return <span className="flex items-center gap-1 text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded-full text-xs font-medium transition-colors"><Clock size={14}/> Pendiente</span>;
   };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-800">Control de Pagos</h2>
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 transition-colors">Control de Pagos</h2>
       </div>
       
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-sm font-medium text-slate-500">
+            <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-500 dark:text-slate-400 transition-colors">
               <th className="p-4">Habitación</th>
               <th className="p-4">Inquilino</th>
               <th className="p-4">Periodo</th>
@@ -61,16 +61,16 @@ export default function Pagos() {
               <th className="p-4 text-right">Acción</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
             {loading ? (
-              <tr><td colSpan={7} className="p-4 text-center text-slate-500">Cargando...</td></tr>
+              <tr><td colSpan={7} className="p-4 text-center text-slate-500 dark:text-slate-400">Cargando...</td></tr>
             ) : pagos.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                <td className="p-4 font-medium text-slate-800">{p.contrato?.habitacion?.numero}</td>
-                <td className="p-4 text-slate-600">{p.contrato?.inquilino_nombre}</td>
-                <td className="p-4 text-slate-600">{p.mes}/{p.anio}</td>
-                <td className="p-4 text-slate-600">{new Date(p.fecha_vencimiento).toLocaleDateString()}</td>
-                <td className="p-4 font-medium text-slate-800">Bs. {p.monto_total}</td>
+              <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                <td className="p-4 font-medium text-slate-800 dark:text-slate-200">{p.contrato?.habitacion?.numero}</td>
+                <td className="p-4 text-slate-600 dark:text-slate-300">{p.contrato?.inquilino_nombre}</td>
+                <td className="p-4 text-slate-600 dark:text-slate-300">{p.mes}/{p.anio}</td>
+                <td className="p-4 text-slate-600 dark:text-slate-300">{new Date(p.fecha_vencimiento).toLocaleDateString()}</td>
+                <td className="p-4 font-medium text-slate-800 dark:text-slate-200">Bs. {p.monto_total}</td>
                 <td className="p-4">{getStatusBadge(p.estado_pago)}</td>
                 <td className="p-4 text-right">
                   {p.estado_pago !== 'Pagado' && (

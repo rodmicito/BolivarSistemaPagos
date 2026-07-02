@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Pagos from './pages/Pagos';
 import Contratos from './pages/Contratos';
 import Inquilinos from './pages/Inquilinos';
+import Habitaciones from './pages/Habitaciones';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           <Route path="/pagos" element={<Pagos />} />
           <Route path="/contratos" element={<Contratos />} />
           <Route path="/inquilinos" element={<Inquilinos />} />
+          <Route path="/habitaciones" element={<Habitaciones />} />
         </Routes>
       </Layout>
     </BrowserRouter>

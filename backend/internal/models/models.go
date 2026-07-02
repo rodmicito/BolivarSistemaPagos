@@ -7,12 +7,20 @@ import (
 )
 
 type Habitacion struct {
-	ID          uint   `json:"id" gorm:"primaryKey"`
-	Numero      string `json:"numero"`
-	Bloque      string `json:"bloque"`
-	Descripcion string `json:"descripcion"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                uint    `json:"id" gorm:"primaryKey"`
+	Numero            string  `json:"numero"`
+	Bloque            string  `json:"bloque"`
+	Nivel             string  `json:"nivel"`
+	TipoHabitacion    string  `json:"tipo_habitacion"`
+	TipoBano          string  `json:"tipo_bano"`
+	PrecioAlquiler    float64 `json:"precio_alquiler"`
+	PrecioAnticretico float64 `json:"precio_anticretico"`
+	PrecioInternet    float64 `json:"precio_internet"`
+	Descripcion       string  `json:"descripcion"`
+	Disponible        bool    `json:"disponible" gorm:"default:true"`
+	Activo            bool    `json:"activo" gorm:"default:true"`
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 type Contrato struct {

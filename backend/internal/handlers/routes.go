@@ -51,6 +51,35 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
         c.JSON(http.StatusCreated, h)
     })
 
+    api.PUT("/habitaciones/:id", func(c *gin.Context) {
+        id := c.Param("id")
+        var h models.Habitacion
+        if err := db.First(&h, id).Error; err != nil {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Habitacion not found"})
+            return
+        }
+
+        var updateData models.Habitacion
+        if err := c.ShouldBindJSON(&updateData); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            return
+        }
+
+        // Update fields
+        h.Numero = updateData.Numero
+        h.Bloque = updateData.Bloque
+        h.Nivel = updateData.Nivel
+        h.TipoHabitacion = updateData.TipoHabitacion
+        h.TipoBano = updateData.TipoBano
+        h.Descripcion = updateData.Descripcion
+        h.PrecioAlquiler = updateData.PrecioAlquiler
+        h.PrecioAnticretico = updateData.PrecioAnticretico
+        h.PrecioInternet = updateData.PrecioInternet
+
+        db.Save(&h)
+        c.JSON(http.StatusOK, h)
+    })
+
     // === CONTRATOS ===
 	api.GET("/contratos", func(c *gin.Context) {
 		var contratos []models.Contrato
@@ -75,6 +104,55 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
         services.CrearPagosMensualesDelAnio(db, ct, time.Now().Year())
         
         c.JSON(http.StatusCreated, ct)
+    })
+
+    api.PUT("/contratos/:id", func(c *gin.Context) {
+        id := c.Param("id")
+        var ct models.Contrato
+        if err := db.First(&ct, id).Error; err != nil {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Contrato not found"})
+            return
+        }
+
+        var updateData models.Contrato
+        if err := c.ShouldBindJSON(&updateData); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            return
+        }
+
+        // Update fields related to Inquilino/Contrato
+        ct.InquilinoNombre = updateData.InquilinoNombre
+        ct.Estado = updateData.Estado
+        ct.TipoContrato = updateData.TipoContrato
+        ct.MontoMensual = updateData.MontoMensual
+        ct.MontoGarantia = updateData.MontoGarantia
+
+        db.Save(&ct)
+        c.JSON(http.StatusOK, ct)
+    })
+
+    api.DELETE("/contratos/:id", func(c *gin.Context) {
+        id := c.Param("id")
+        
+        // Use a transaction to ensure both payments and contract are deleted
+        err := db.Transaction(func(tx *gorm.DB) error {
+            // 1. Delete associated payments
+            if err := tx.Where("contrato_id = ?", id).Delete(&models.PagoMensual{}).Error; err != nil {
+                return err
+            }
+            // 2. Delete the contract itself
+            if err := tx.Delete(&models.Contrato{}, id).Error; err != nil {
+                return err
+            }
+            return nil
+        })
+
+        if err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete contrato and associated payments"})
+            return
+        }
+
+        c.JSON(http.StatusOK, gin.H{"message": "Contrato deleted successfully"})
     })
 
     // === PAGOS ===
