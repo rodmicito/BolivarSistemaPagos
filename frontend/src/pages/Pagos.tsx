@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 
 interface Pago {
@@ -19,7 +19,7 @@ export default function Pagos() {
   const [loading, setLoading] = useState(true);
 
   const loadPagos = () => {
-    fetch('http://localhost:8080/api/pagos')
+    fetch('/api/pagos')
       .then(res => res.json())
       .then(data => {
         setPagos(data);
@@ -32,7 +32,7 @@ export default function Pagos() {
   }, []);
 
   const handlePagar = (id: number) => {
-    fetch(`http://localhost:8080/api/pagos/${id}/pagar`, { method: 'POST' })
+    fetch(`/api/pagos/${id}/pagar`, { method: 'POST' })
       .then(() => loadPagos());
   };
 

@@ -3,7 +3,7 @@
 .env
 
 # Backend (Go)
-backend/api.exe
+backend/*.exe
 backend/pagos.db
 backend/pagos.db-journal
 

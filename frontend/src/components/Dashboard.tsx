@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, AlertTriangle } from 'lucide-react';
 
 interface Stats {
@@ -35,8 +35,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     Promise.all([
-      fetch('http://localhost:8080/api/dashboard/stats').then(res => res.json()),
-      fetch('http://localhost:8080/api/pagos').then(res => res.json())
+      fetch('/api/dashboard/stats').then(res => res.json()),
+      fetch('/api/pagos').then(res => res.json())
     ]).then(([statsData, pagosData]) => {
       setStats(statsData);
       setPagos(pagosData);

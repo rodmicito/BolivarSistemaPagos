@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Users, X, Plus } from 'lucide-react';
 
 interface Habitacion {
@@ -28,8 +28,8 @@ export default function Inquilinos() {
 
   const loadData = () => {
     Promise.all([
-      fetch('http://localhost:8080/api/contratos').then(r => r.json()),
-      fetch('http://localhost:8080/api/habitaciones').then(r => r.json())
+      fetch('/api/contratos').then(r => r.json()),
+      fetch('/api/habitaciones').then(r => r.json())
     ])
     .then(([contratosData, habitacionesData]) => {
       setInquilinos(contratosData);
@@ -78,8 +78,8 @@ export default function Inquilinos() {
     };
 
     const url = isCreating 
-      ? 'http://localhost:8080/api/contratos' 
-      : `http://localhost:8080/api/contratos/${selectedInquilino.id}`;
+      ? '/api/contratos' 
+      : `/api/contratos/${selectedInquilino.id}`;
       
     const method = isCreating ? 'POST' : 'PUT';
 

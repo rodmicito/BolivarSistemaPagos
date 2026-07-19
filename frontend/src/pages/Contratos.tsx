@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FileText, Plus, Home, DollarSign, Briefcase, Eye, Edit, Trash2, Filter, X } from 'lucide-react';
 
 interface Habitacion {
@@ -35,8 +35,8 @@ export default function Contratos() {
 
   const loadData = () => {
     Promise.all([
-      fetch('http://localhost:8080/api/contratos').then(r => r.json()),
-      fetch('http://localhost:8080/api/habitaciones').then(r => r.json())
+      fetch('/api/contratos').then(r => r.json()),
+      fetch('/api/habitaciones').then(r => r.json())
     ])
     .then(([contratosData, habitacionesData]) => {
       setContratos(contratosData || []);
@@ -69,7 +69,7 @@ export default function Contratos() {
   // --- Actions ---
   const handleToggleEstado = (c: Contrato) => {
     const newEstado = c.estado === 'Activo' ? 'Inactivo' : 'Activo';
-    fetch(`http://localhost:8080/api/contratos/${c.id}`, {
+    fetch(`/api/contratos/${c.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...c, estado: newEstado })
@@ -80,7 +80,7 @@ export default function Contratos() {
 
   const handleDelete = (id: number) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar este contrato y todos sus pagos asociados? Esta acción no se puede deshacer.")) {
-      fetch(`http://localhost:8080/api/contratos/${id}`, { method: 'DELETE' })
+      fetch(`/api/contratos/${id}`, { method: 'DELETE' })
         .then(() => loadData())
         .catch(console.error);
     }
@@ -120,8 +120,8 @@ export default function Contratos() {
     };
 
     const url = isCreating 
-      ? 'http://localhost:8080/api/contratos' 
-      : `http://localhost:8080/api/contratos/${selectedContrato.id}`;
+      ? '/api/contratos' 
+      : `/api/contratos/${selectedContrato.id}`;
       
     const method = isCreating ? 'POST' : 'PUT';
 

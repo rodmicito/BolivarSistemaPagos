@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"net/http"
+	"os"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -11,7 +13,11 @@ import (
 
 func main() {
 	// Initialize database
-	db, err := database.InitDB("pagos.db")
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "pagos.db"
+	}
+	db, err := database.InitDB(dbPath)
 	if err != nil {
 		log.Fatalf("Error initializing database: %v", err)
 	}
@@ -27,9 +33,28 @@ func main() {
 	// Setup Routes
 	handlers.SetupRoutes(r, db)
 
+	// Serve static files if dist directory exists (production container build)
+	if _, err := os.Stat("dist"); err == nil {
+		r.StaticFS("/assets", http.Dir("dist/assets"))
+		r.StaticFile("/favicon.ico", "dist/favicon.ico")
+		r.StaticFile("/", "dist/index.html")
+		r.NoRoute(func(c *gin.Context) {
+			// Do not fallback to index.html for API requests
+			if len(c.Request.URL.Path) >= 5 && c.Request.URL.Path[:5] == "/api/" {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Not Found"})
+				return
+			}
+			c.File("dist/index.html")
+		})
+	}
+
 	// Start server
-	log.Println("Server starting on :8080...")
-	if err := r.Run(":8080"); err != nil {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Server starting on :%s...", port)
+	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}
 }

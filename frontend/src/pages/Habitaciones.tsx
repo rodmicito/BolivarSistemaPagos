@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Home, CheckCircle2, XCircle, Percent, Filter, Lock, X } from 'lucide-react';
 
 interface Habitacion {
@@ -31,7 +31,7 @@ export default function Habitaciones() {
   };
 
   const loadRooms = () => {
-    fetch('http://localhost:8080/api/habitaciones')
+    fetch('/api/habitaciones')
       .then(res => res.json())
       .then(data => {
         const mapped = data.map((h: any, i: number) => ({
@@ -72,7 +72,7 @@ export default function Habitaciones() {
     e.preventDefault();
     if (!selectedHabitacion) return;
 
-    fetch(`http://localhost:8080/api/habitaciones/${selectedHabitacion.id}`, {
+    fetch(`/api/habitaciones/${selectedHabitacion.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(selectedHabitacion)

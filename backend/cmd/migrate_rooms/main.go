@@ -27,10 +27,13 @@ type RoomJSON struct {
 }
 
 func main() {
-	database.ConnectDB()
+	db, err := database.InitDB("pagos.db")
+	if err != nil {
+		log.Fatalf("Error connecting to database: %v", err)
+	}
 
 	// Wipe old rooms just in case
-	database.DB.Exec("DELETE FROM habitacions")
+	db.Exec("DELETE FROM habitacions")
 
 	data, err := os.ReadFile("rooms.json")
 	if err != nil {
@@ -70,7 +73,7 @@ func main() {
 			Activo:            r.Activo,
 		}
 
-		if err := database.DB.Create(&habitacion).Error; err != nil {
+		if err := db.Create(&habitacion).Error; err != nil {
 			log.Printf("Error creating room %s: %v", numero, err)
 		}
 	}

@@ -1,4 +1,4 @@
-import React, { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Home, Users, FileText, CreditCard, LogOut, Activity, Sun, Moon } from 'lucide-react';
 
@@ -37,31 +37,31 @@ export default function Layout({ children }: LayoutProps) {
           <ul className="space-y-2">
             <li>
               <NavLink to="/" className={({isActive}) => `flex items-center gap-4 px-4 py-3 rounded-lg transition-colors font-medium ${isActive ? 'text-black dark:text-white bg-slate-50 dark:bg-slate-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
-                <Activity size={22} className={({isActive}) => isActive ? 'text-black dark:text-white' : 'text-slate-500'} />
+                <Activity size={22} />
                 <span className="text-[15px]">Dashboard</span>
               </NavLink>
             </li>
             <li>
               <NavLink to="/habitaciones" className={({isActive}) => `flex items-center gap-4 px-4 py-3 rounded-lg transition-colors font-medium ${isActive ? 'text-black dark:text-white bg-slate-50 dark:bg-slate-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
-                <Home size={22} className={({isActive}) => isActive ? 'text-black dark:text-white' : 'text-slate-500'} />
+                <Home size={22} />
                 <span className="text-[15px]">Habitaciones</span>
               </NavLink>
             </li>
             <li>
               <NavLink to="/inquilinos" className={({isActive}) => `flex items-center gap-4 px-4 py-3 rounded-lg transition-colors font-medium ${isActive ? 'text-black dark:text-white bg-slate-50 dark:bg-slate-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
-                <Users size={22} className={({isActive}) => isActive ? 'text-black dark:text-white' : 'text-slate-500'} />
+                <Users size={22} />
                 <span className="text-[15px]">Inquilinos</span>
               </NavLink>
             </li>
             <li>
               <NavLink to="/contratos" className={({isActive}) => `flex items-center gap-4 px-4 py-3 rounded-lg transition-colors font-medium ${isActive ? 'text-black dark:text-white bg-slate-50 dark:bg-slate-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
-                <FileText size={22} className={({isActive}) => isActive ? 'text-black dark:text-white' : 'text-slate-500'} />
+                <FileText size={22} />
                 <span className="text-[15px]">Contratos</span>
               </NavLink>
             </li>
             <li>
               <NavLink to="/pagos" className={({isActive}) => `flex items-center gap-4 px-4 py-3 rounded-lg transition-colors font-medium ${isActive ? 'text-black dark:text-white bg-slate-50 dark:bg-slate-800' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
-                <CreditCard size={22} className={({isActive}) => isActive ? 'text-black dark:text-white' : 'text-slate-500'} />
+                <CreditCard size={22} />
                 <span className="text-[15px]">Pagos</span>
               </NavLink>
             </li>
