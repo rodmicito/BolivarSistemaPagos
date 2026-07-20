@@ -48,10 +48,52 @@ export default function Pagos() {
         <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 transition-colors">Control de Pagos</h2>
       </div>
       
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
+      {/* Vista Móvil: Tarjetas */}
+      <div className="space-y-4 md:hidden">
+        {loading ? (
+          <p className="text-center text-slate-500 dark:text-slate-400 py-8 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">Cargando...</p>
+        ) : pagos.length === 0 ? (
+          <p className="text-center text-slate-500 dark:text-slate-400 py-8 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">No hay pagos registrados.</p>
+        ) : pagos.map(p => (
+          <div key={p.id} className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-sm space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="bg-indigo-150 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 text-xs font-bold px-3 py-1 rounded-md transition-colors">
+                Habitación {p.contrato?.habitacion?.numero}
+              </span>
+              {getStatusBadge(p.estado_pago)}
+            </div>
+            
+            <div className="space-y-1">
+              <h4 className="font-bold text-slate-800 dark:text-slate-150 text-base">{p.contrato?.inquilino_nombre}</h4>
+              <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>Periodo: {p.mes}/{p.anio}</span>
+                <span>Vence: {new Date(p.fecha_vencimiento).toLocaleDateString()}</span>
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center pt-3 border-t border-slate-100 dark:border-slate-700/60">
+              <div>
+                <span className="text-[10px] text-slate-400 dark:text-slate-550 block font-semibold uppercase">Monto Total</span>
+                <span className="font-extrabold text-slate-800 dark:text-slate-100 text-lg">Bs. {p.monto_total}</span>
+              </div>
+              {p.estado_pago !== 'Pagado' && (
+                <button 
+                  onClick={() => handlePagar(p.id)} 
+                  className="bg-indigo-650 hover:bg-indigo-700 text-white text-sm py-2 px-5 rounded-lg font-bold transition-all shadow-sm active:scale-95"
+                >
+                  Cobrar
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Vista Desktop: Tabla */}
+      <div className="hidden md:block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-500 dark:text-slate-400 transition-colors">
+            <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-650 dark:text-slate-350 transition-colors uppercase tracking-wider">
               <th className="p-4">Habitación</th>
               <th className="p-4">Inquilino</th>
               <th className="p-4">Periodo</th>
@@ -63,18 +105,20 @@ export default function Pagos() {
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
             {loading ? (
-              <tr><td colSpan={7} className="p-4 text-center text-slate-500 dark:text-slate-400">Cargando...</td></tr>
+              <tr><td colSpan={7} className="p-8 text-center text-slate-500 dark:text-slate-400">Cargando...</td></tr>
+            ) : pagos.length === 0 ? (
+              <tr><td colSpan={7} className="p-8 text-center text-slate-500 dark:text-slate-400">No hay pagos registrados.</td></tr>
             ) : pagos.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                <td className="p-4 font-medium text-slate-800 dark:text-slate-200">{p.contrato?.habitacion?.numero}</td>
-                <td className="p-4 text-slate-600 dark:text-slate-300">{p.contrato?.inquilino_nombre}</td>
-                <td className="p-4 text-slate-600 dark:text-slate-300">{p.mes}/{p.anio}</td>
-                <td className="p-4 text-slate-600 dark:text-slate-300">{new Date(p.fecha_vencimiento).toLocaleDateString()}</td>
-                <td className="p-4 font-medium text-slate-800 dark:text-slate-200">Bs. {p.monto_total}</td>
+              <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/30 transition-colors">
+                <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{p.contrato?.habitacion?.numero}</td>
+                <td className="p-4 text-slate-650 dark:text-slate-300 font-medium">{p.contrato?.inquilino_nombre}</td>
+                <td className="p-4 text-slate-600 dark:text-slate-400">{p.mes}/{p.anio}</td>
+                <td className="p-4 text-slate-600 dark:text-slate-400">{new Date(p.fecha_vencimiento).toLocaleDateString()}</td>
+                <td className="p-4 font-bold text-slate-800 dark:text-slate-200">Bs. {p.monto_total}</td>
                 <td className="p-4">{getStatusBadge(p.estado_pago)}</td>
                 <td className="p-4 text-right">
                   {p.estado_pago !== 'Pagado' && (
-                    <button onClick={() => handlePagar(p.id)} className="text-sm bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded-lg font-medium transition-colors">
+                    <button onClick={() => handlePagar(p.id)} className="text-sm bg-indigo-650 hover:bg-indigo-700 text-white py-1.5 px-4 rounded-lg font-bold transition-all shadow-sm">
                       Cobrar
                     </button>
                   )}

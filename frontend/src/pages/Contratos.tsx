@@ -141,11 +141,11 @@ export default function Contratos() {
     <div className="max-w-7xl mx-auto space-y-8">
       
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 transition-colors">Gestión de Contratos</h2>
         <button 
           onClick={openCreateModal}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors shadow-sm"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto"
         >
           <Plus size={18} />
           Nuevo Contrato
@@ -220,13 +220,73 @@ export default function Contratos() {
           </button>
         </div>
       </div>
-      
-      {/* Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
+      {/* Vista Móvil: Tarjetas */}
+      <div className="space-y-4 md:hidden">
+        {loading ? (
+          <p className="text-center text-slate-500 dark:text-slate-400 py-8 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">Cargando datos...</p>
+        ) : filteredContratos.length === 0 ? (
+          <p className="text-center text-slate-500 dark:text-slate-400 py-8 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">No hay contratos registrados.</p>
+        ) : filteredContratos.map(c => (
+          <div key={c.id} className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-sm space-y-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-base">{c.inquilino_nombre}</h4>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Inicio: {c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString() : 'N/A'}</p>
+              </div>
+              <span className="inline-flex items-center justify-center bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 px-3 py-1 rounded-lg font-bold text-xs border border-indigo-100 dark:border-indigo-900/50">
+                Hab. {c.habitacion?.numero}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 dark:border-slate-700/60">
+              <div>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-semibold">Tipo</span>
+                <span className={`inline-block mt-0.5 px-2.5 py-0.5 rounded-md text-[11px] font-extrabold uppercase ${c.tipo_contrato?.toLowerCase() === 'alquiler' ? 'bg-emerald-500 text-white' : 'bg-orange-500 text-white'}`}>
+                  {c.tipo_contrato}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-semibold">Mensualidad</span>
+                <span className="font-bold text-slate-800 dark:text-slate-205 text-sm">Bs. {c.monto_mensual?.toFixed(2)}</span>
+                {c.tipo_contrato?.toLowerCase() === 'anticretico' && (
+                  <span className="text-[10px] text-slate-400 block font-medium">Garantía: Bs. {c.monto_garantia?.toFixed(2)}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-3 border-t border-slate-100 dark:border-slate-700/60">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Estado:</span>
+                <button 
+                  onClick={() => handleToggleEstado(c)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${c.estado === 'Activo' ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                >
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${c.estado === 'Activo' ? 'translate-x-5' : 'translate-x-1'}`} />
+                </button>
+                <span className={`text-[11px] font-bold ${c.estado === 'Activo' ? 'text-emerald-500' : 'text-slate-500'}`}>{c.estado}</span>
+              </div>
+              <div className="flex gap-1.5">
+                <button onClick={() => openEditModal(c)} className="p-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition-colors shadow-sm" title="Ver Detalle">
+                  <Eye size={15} />
+                </button>
+                <button onClick={() => openEditModal(c)} className="p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors shadow-sm" title="Editar">
+                  <Edit size={15} />
+                </button>
+                <button onClick={() => handleDelete(c.id!)} className="p-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg transition-colors shadow-sm" title="Eliminar">
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Vista Desktop: Tabla */}
+      <div className="hidden md:block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-colors">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider transition-colors">
+              <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-650 dark:text-slate-350 uppercase tracking-wider transition-colors">
                 <th className="p-5">Inquilino</th>
                 <th className="p-5 text-center">Habitación</th>
                 <th className="p-5 text-center">Tipo</th>
