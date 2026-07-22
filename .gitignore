@@ -4,7 +4,6 @@
 
 # Backend (Go)
 backend/*.exe
-backend/pagos.db
 backend/pagos.db-journal
 
 # Frontend (React)
