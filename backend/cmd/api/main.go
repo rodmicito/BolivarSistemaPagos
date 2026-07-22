@@ -1,9 +1,11 @@
 package main
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -17,6 +19,37 @@ func main() {
 	if dbPath == "" {
 		dbPath = "pagos.db"
 	}
+
+	// Copy default database if the destination database file doesn't exist
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		if _, errDefault := os.Stat("pagos_default.db"); errDefault == nil {
+			log.Printf("Database file not found at %s. Copying default database pagos_default.db...", dbPath)
+			// Ensure parent directory exists
+			dir := filepath.Dir(dbPath)
+			if errDir := os.MkdirAll(dir, 0755); errDir != nil {
+				log.Printf("Failed to create directory %s: %v", dir, errDir)
+			} else {
+				src, errSrc := os.Open("pagos_default.db")
+				if errSrc == nil {
+					defer src.Close()
+					dst, errDst := os.Create(dbPath)
+					if errDst == nil {
+						defer dst.Close()
+						if _, errCopy := io.Copy(dst, src); errCopy != nil {
+							log.Printf("Failed to copy default database: %v", errCopy)
+						} else {
+							log.Println("Default database copied successfully.")
+						}
+					} else {
+						log.Printf("Failed to create destination database file: %v", errDst)
+					}
+				} else {
+					log.Printf("Failed to open source default database: %v", errSrc)
+				}
+			}
+		}
+	}
+
 	db, err := database.InitDB(dbPath)
 	if err != nil {
 		log.Fatalf("Error initializing database: %v", err)

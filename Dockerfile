@@ -26,11 +26,13 @@ RUN apk add --no-cache ca-certificates sqlite
 # Copy built frontend assets
 COPY --from=frontend-builder /app/frontend/dist ./dist
 
-# Copy built backend binary
 COPY --from=backend-builder /app/backend/main ./main
 
 # Create database directory for volume mounting and set permissions
 RUN mkdir -p /app/data
+
+# Copy default database to be used on first run
+COPY backend/pagos.db ./pagos_default.db
 
 # Set environment variables
 ENV PORT=8080
