@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/erick/pagosbolivar/internal/database"
 	"github.com/erick/pagosbolivar/internal/handlers"
+	"github.com/erick/pagosbolivar/internal/models"
 )
 
 func main() {
@@ -53,6 +54,46 @@ func main() {
 	db, err := database.InitDB(dbPath)
 	if err != nil {
 		log.Fatalf("Error initializing database: %v", err)
+	}
+
+	// Check if the database has 0 rooms, which indicates an empty/freshly initialized DB,
+	// and copy the pre-seeded default database if it is available.
+	var count int64
+	if errCount := db.Model(&models.Habitacion{}).Count(&count).Error; errCount == nil && count == 0 {
+		if _, errDefault := os.Stat("pagos_default.db"); errDefault == nil {
+			log.Println("Database has 0 rooms. Restoring default database from pagos_default.db...")
+			
+			// Close GORM connection to release file lock on SQLite database
+			sqlDB, errSql := db.DB()
+			if errSql == nil {
+				sqlDB.Close()
+			}
+			
+			// Copy pagos_default.db over dbPath
+			src, errSrc := os.Open("pagos_default.db")
+			if errSrc == nil {
+				defer src.Close()
+				dst, errDst := os.Create(dbPath)
+				if errDst == nil {
+					defer dst.Close()
+					if _, errCopy := io.Copy(dst, src); errCopy != nil {
+						log.Printf("Failed to copy default database: %v", errCopy)
+					} else {
+						log.Println("Default database restored successfully.")
+					}
+				} else {
+					log.Printf("Failed to create destination database file: %v", errDst)
+				}
+			} else {
+				log.Printf("Failed to open source default database: %v", errSrc)
+			}
+			
+			// Reconnect to the newly copied database
+			db, err = database.InitDB(dbPath)
+			if err != nil {
+				log.Fatalf("Error re-initializing database after restore: %v", err)
+			}
+		}
 	}
 
 	// Create Gin router
