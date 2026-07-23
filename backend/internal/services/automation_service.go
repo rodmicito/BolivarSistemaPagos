@@ -29,6 +29,7 @@ type AutomationStatus struct {
 	LastData    *ESP32Data                `json:"last_data"`
 	LastUpdated string                    `json:"last_updated"`
 	Settings    *models.AutomationSetting `json:"settings"`
+	RawJSON     string                    `json:"raw_json"`
 }
 
 type AutomationService struct {
@@ -41,6 +42,7 @@ type AutomationService struct {
 	lastUpdated  time.Time
 	brokerURL    string
 	settings     *models.AutomationSetting
+	rawJSON      string
 }
 
 var (
@@ -246,6 +248,7 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		LastData:    s.lastData,
 		LastUpdated: lastUpdatedStr,
 		Settings:    s.settings,
+		RawJSON:     s.rawJSON,
 	}
 }
 
@@ -268,6 +271,9 @@ func getStringValue(m map[string]interface{}, key string) string {
 func (s *AutomationService) handleSensorMessage(client mqtt.Client, msg mqtt.Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	payloadStr := string(msg.Payload())
+	s.rawJSON = payloadStr
 
 	var rawMap map[string]interface{}
 	if err := json.Unmarshal(msg.Payload(), &rawMap); err != nil {

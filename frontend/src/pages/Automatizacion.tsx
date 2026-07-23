@@ -34,6 +34,7 @@ interface AutomationStatus {
   last_data: ESP32Data | null;
   last_updated: string;
   settings: AutomationSetting | null;
+  raw_json: string;
 }
 
 export default function Automatizacion() {
@@ -44,6 +45,7 @@ export default function Automatizacion() {
     last_data: null,
     last_updated: '',
     settings: null,
+    raw_json: '',
   });
   
   // Local edit state for settings
@@ -510,6 +512,30 @@ export default function Automatizacion() {
           </div>
         </div>
 
+      </div>
+
+      {/* Raw JSON telemetry payload */}
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
+        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-2">
+          <HardDrive size={18} className="text-indigo-500" />
+          Trama JSON Recibida en Tiempo Real (Tópico: {status.settings?.telemetry_topic || 'np1'})
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+          Último mensaje completo recibido desde el broker MQTT para depuración y monitoreo de claves.
+        </p>
+        <pre className="bg-slate-950 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-48 border border-slate-800 dark:border-slate-900 shadow-inner">
+          {status.raw_json ? (
+            (() => {
+              try {
+                return JSON.stringify(JSON.parse(status.raw_json), null, 2);
+              } catch (e) {
+                return status.raw_json;
+              }
+            })()
+          ) : (
+            <span className="text-slate-500 italic">Esperando datos del tópico...</span>
+          )}
+        </pre>
       </div>
 
       {/* Collapsible Config Section */}
