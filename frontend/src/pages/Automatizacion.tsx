@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Cpu, Power, Droplet, RefreshCw, Radio, HardDrive, Info, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { Cpu, Power, Droplet, RefreshCw, Radio, HardDrive, Info, Settings, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 
 interface ESP32Data {
   lm: string;
@@ -26,11 +26,15 @@ interface AutomationSetting {
   key_balance: string;
   key_lm: string;
   key_lm2: string;
+  scheduler_active: boolean;
+  time_on: number;
+  time_off: number;
 }
 
 interface AutomationStatus {
   connected: boolean;
   relay_state: string;
+  relay_state_time: string;
   last_data: ESP32Data | null;
   last_updated: string;
   settings: AutomationSetting | null;
@@ -42,6 +46,7 @@ export default function Automatizacion() {
   const [status, setStatus] = useState<AutomationStatus>({
     connected: false,
     relay_state: 'Desconocido',
+    relay_state_time: '',
     last_data: null,
     last_updated: '',
     settings: null,
@@ -62,6 +67,9 @@ export default function Automatizacion() {
     key_balance: 'balance',
     key_lm: 'lm',
     key_lm2: 'lm2',
+    scheduler_active: false,
+    time_on: 15,
+    time_off: 45,
   });
 
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -69,6 +77,8 @@ export default function Automatizacion() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<string>('');
+  
   const pollInterval = useRef<any>(null);
   const settingsSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -105,6 +115,34 @@ export default function Automatizacion() {
       }
     };
   }, [settingsLoaded]);
+
+  // Live countdown timer calculation for scheduler
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!status.settings?.scheduler_active || !status.relay_state_time || status.relay_state === 'Desconocido') {
+        setTimeLeft('');
+        return;
+      }
+
+      const stateTime = new Date(status.relay_state_time).getTime();
+      const now = new Date().getTime();
+      const elapsedMs = now - stateTime;
+
+      const limitMin = status.relay_state === 'ON' ? status.settings.time_on : status.settings.time_off;
+      const limitMs = limitMin * 60 * 1000;
+      const remainingMs = limitMs - elapsedMs;
+
+      if (remainingMs <= 0) {
+        setTimeLeft('00:00 (Alternando...)');
+      } else {
+        const minutes = Math.floor(remainingMs / 1000 / 60);
+        const seconds = Math.floor((remainingMs / 1000) % 60);
+        setTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [status.relay_state_time, status.relay_state, status.settings]);
 
   const handleConnectToggle = () => {
     setLoading(true);
@@ -169,6 +207,71 @@ export default function Automatizacion() {
       .catch((err) => {
         console.error(err);
         setError('No se pudo guardar la configuración de los tópicos');
+        setLoading(false);
+      });
+  };
+
+  const handleToggleScheduler = (active: boolean) => {
+    if (!status.settings) return;
+    setLoading(true);
+    const updatedSettings = {
+      ...status.settings,
+      scheduler_active: active,
+    };
+
+    fetch('/api/automation/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedSettings),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al alternar temporizador');
+        return res.json();
+      })
+      .then((data: AutomationStatus) => {
+        setStatus(data);
+        if (data.settings) {
+          setSettings(data.settings);
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError('No se pudo cambiar el estado del programador');
+        setLoading(false);
+      });
+  };
+
+  const handleSaveTimesOnly = (timeOn: number, timeOff: number) => {
+    if (!status.settings) return;
+    setLoading(true);
+    const updatedSettings = {
+      ...status.settings,
+      time_on: timeOn,
+      time_off: timeOff,
+    };
+
+    fetch('/api/automation/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedSettings),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al guardar intervalos');
+        return res.json();
+      })
+      .then((data: AutomationStatus) => {
+        setStatus(data);
+        if (data.settings) {
+          setSettings(data.settings);
+        }
+        setLoading(false);
+        setSuccessMsg('Intervalos de tiempo guardados');
+        setTimeout(() => setSuccessMsg(null), 3000);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError('No se pudieron guardar los intervalos');
         setLoading(false);
       });
   };
@@ -242,7 +345,7 @@ export default function Automatizacion() {
       {/* Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Column 1: Connection & Relay Control */}
+        {/* Column 1: Connection, Relay Control & Scheduler */}
         <div className="space-y-6 lg:col-span-1">
           {/* Connection Settings Card */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
@@ -327,13 +430,17 @@ export default function Automatizacion() {
               <div className="grid grid-cols-2 gap-3 w-full">
                 <button
                   onClick={() => handleCommand('on')}
-                  className="py-2 px-4 rounded-xl font-medium text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm"
+                  disabled={status.settings?.scheduler_active}
+                  className="py-2 px-4 rounded-xl font-medium text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={status.settings?.scheduler_active ? 'Desactiva el temporizador para control manual' : ''}
                 >
                   Encender
                 </button>
                 <button
                   onClick={() => handleCommand('off')}
-                  className="py-2 px-4 rounded-xl font-medium text-xs bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-sm"
+                  disabled={status.settings?.scheduler_active}
+                  className="py-2 px-4 rounded-xl font-medium text-xs bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={status.settings?.scheduler_active ? 'Desactiva el temporizador para control manual' : ''}
                 >
                   Apagar
                 </button>
@@ -354,6 +461,95 @@ export default function Automatizacion() {
                   {status.settings?.relay_state_topic || 'rele/state'}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* New Timed Automation Scheduler Card */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
+            <div className="flex justify-between items-start mb-2">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Clock size={20} className="text-indigo-500" />
+                Temporizador Cíclico
+              </h3>
+              {status.settings?.scheduler_active ? (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+                  ACTIVO
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                  INACTIVO
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+              Alterna automáticamente el relé encendido/apagado en intervalos de minutos.
+            </p>
+
+            <div className="space-y-4">
+              {/* Activation Toggle switch */}
+              <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-700/50">
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Activar Programador</span>
+                <button
+                  onClick={() => handleToggleScheduler(!status.settings?.scheduler_active)}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${
+                    status.settings?.scheduler_active ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white absolute transition-transform shadow ${
+                    status.settings?.scheduler_active ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Interval times form */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                    Tiempo Encendido (min)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={settings.time_on}
+                    onChange={(e) => setSettings({ ...settings, time_on: parseInt(e.target.value) || 1 })}
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                    Tiempo Apagado (min)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={settings.time_off}
+                    onChange={(e) => setSettings({ ...settings, time_off: parseInt(e.target.value) || 1 })}
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleSaveTimesOnly(settings.time_on, settings.time_off)}
+                className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-slate-700 dark:hover:bg-slate-655 text-indigo-700 dark:text-indigo-300 font-bold text-xs rounded-lg transition-colors"
+              >
+                Guardar Intervalos
+              </button>
+
+              {/* Countdown ticker display */}
+              {status.settings?.scheduler_active && timeLeft && (
+                <div className="mt-2 p-3 bg-indigo-50/40 dark:bg-indigo-950/10 border border-indigo-100 dark:border-indigo-900/35 rounded-xl text-center">
+                  <span className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                    Cambio de estado en
+                  </span>
+                  <span className="text-xl font-black text-indigo-650 dark:text-indigo-400 font-mono block mt-1">
+                    {timeLeft}
+                  </span>
+                  <span className="block text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+                    Siguiente: {status.relay_state === 'ON' ? 'APAGADO' : 'ENCENDIDO'}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -523,7 +719,7 @@ export default function Automatizacion() {
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
           Último mensaje completo recibido desde el broker MQTT para depuración y monitoreo de claves.
         </p>
-        <pre className="bg-slate-950 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-48 border border-slate-800 dark:border-slate-900 shadow-inner">
+        <pre className="bg-slate-955 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-48 border border-slate-800 dark:border-slate-900 shadow-inner">
           {status.raw_json ? (
             (() => {
               try {
@@ -635,7 +831,7 @@ export default function Automatizacion() {
                       value={settings.key_porcentaje}
                       onChange={(e) => setSettings({ ...settings, key_porcentaje: e.target.value })}
                       required
-                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -647,7 +843,7 @@ export default function Automatizacion() {
                       value={settings.key_nivel}
                       onChange={(e) => setSettings({ ...settings, key_nivel: e.target.value })}
                       required
-                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -659,7 +855,7 @@ export default function Automatizacion() {
                       value={settings.key_distancia}
                       onChange={(e) => setSettings({ ...settings, key_distancia: e.target.value })}
                       required
-                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -674,7 +870,7 @@ export default function Automatizacion() {
                       value={settings.key_caudal_entrada}
                       onChange={(e) => setSettings({ ...settings, key_caudal_entrada: e.target.value })}
                       required
-                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -686,7 +882,7 @@ export default function Automatizacion() {
                       value={settings.key_caudal_salida}
                       onChange={(e) => setSettings({ ...settings, key_caudal_salida: e.target.value })}
                       required
-                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -698,7 +894,7 @@ export default function Automatizacion() {
                       value={settings.key_balance}
                       onChange={(e) => setSettings({ ...settings, key_balance: e.target.value })}
                       required
-                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -713,7 +909,7 @@ export default function Automatizacion() {
                       value={settings.key_lm}
                       onChange={(e) => setSettings({ ...settings, key_lm: e.target.value })}
                       required
-                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
                     />
                   </div>
                   <div>
@@ -725,7 +921,7 @@ export default function Automatizacion() {
                       value={settings.key_lm2}
                       onChange={(e) => setSettings({ ...settings, key_lm2: e.target.value })}
                       required
-                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
                     />
                   </div>
                 </div>

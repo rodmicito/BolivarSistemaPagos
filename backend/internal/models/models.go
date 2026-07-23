@@ -75,5 +75,9 @@ type AutomationSetting struct {
 	KeyBalance       string `json:"key_balance"`
 	KeyLm            string `json:"key_lm"`
 	KeyLm2           string `json:"key_lm2"`
+	SchedulerActive  bool   `json:"scheduler_active"`
+	TimeOn           int    `json:"time_on"`
+	TimeOff          int    `json:"time_off"`
 }
+
 

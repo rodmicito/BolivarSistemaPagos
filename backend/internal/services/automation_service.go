@@ -24,25 +24,27 @@ type ESP32Data struct {
 }
 
 type AutomationStatus struct {
-	Connected   bool                      `json:"connected"`
-	RelayState  string                    `json:"relay_state"`
-	LastData    *ESP32Data                `json:"last_data"`
-	LastUpdated string                    `json:"last_updated"`
-	Settings    *models.AutomationSetting `json:"settings"`
-	RawJSON     string                    `json:"raw_json"`
+	Connected      bool                      `json:"connected"`
+	RelayState     string                    `json:"relay_state"`
+	RelayStateTime string                    `json:"relay_state_time"`
+	LastData       *ESP32Data                `json:"last_data"`
+	LastUpdated    string                    `json:"last_updated"`
+	Settings       *models.AutomationSetting `json:"settings"`
+	RawJSON        string                    `json:"raw_json"`
 }
 
 type AutomationService struct {
-	mu           sync.RWMutex
-	db           *gorm.DB
-	client       mqtt.Client
-	connected    bool
-	relayState   string
-	lastData     *ESP32Data
-	lastUpdated  time.Time
-	brokerURL    string
-	settings     *models.AutomationSetting
-	rawJSON      string
+	mu             sync.RWMutex
+	db             *gorm.DB
+	client         mqtt.Client
+	connected      bool
+	relayState     string
+	relayStateTime time.Time
+	lastData       *ESP32Data
+	lastUpdated    time.Time
+	brokerURL      string
+	settings       *models.AutomationSetting
+	rawJSON        string
 }
 
 var (
@@ -53,8 +55,9 @@ var (
 func GetAutomationService() *AutomationService {
 	once.Do(func() {
 		GlobalAutomationService = &AutomationService{
-			relayState: "Desconocido",
-			brokerURL:  "77.42.17.7:11884",
+			relayState:     "Desconocido",
+			relayStateTime: time.Now(),
+			brokerURL:      "77.42.17.7:11884",
 			settings: &models.AutomationSetting{
 				Broker:           "77.42.17.7:11884",
 				RelayCmdTopic:    "nivelPrueba/cmd",
@@ -68,8 +71,13 @@ func GetAutomationService() *AutomationService {
 				KeyBalance:       "balance",
 				KeyLm:            "lm",
 				KeyLm2:           "lm2",
+				SchedulerActive:  false,
+				TimeOn:           15,
+				TimeOff:          45,
 			},
 		}
+		// Start cyclic scheduler loop in background
+		go GlobalAutomationService.runSchedulerLoop()
 	})
 	return GlobalAutomationService
 }
@@ -105,6 +113,9 @@ func (s *AutomationService) LoadSettings() {
 			KeyBalance:       "balance",
 			KeyLm:            "lm",
 			KeyLm2:           "lm2",
+			SchedulerActive:  false,
+			TimeOn:           15,
+			TimeOff:          45,
 		}
 		s.db.Create(&settings)
 	} else {
@@ -116,6 +127,14 @@ func (s *AutomationService) LoadSettings() {
 		}
 		if settings.TelemetryTopic == "rele" {
 			settings.TelemetryTopic = "nP1"
+			updated = true
+		}
+		if settings.TimeOn == 0 {
+			settings.TimeOn = 15
+			updated = true
+		}
+		if settings.TimeOff == 0 {
+			settings.TimeOff = 45
 			updated = true
 		}
 		if updated {
@@ -256,13 +275,19 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		lastUpdatedStr = s.lastUpdated.Format(time.RFC3339)
 	}
 
+	var stateTimeStr string
+	if !s.relayStateTime.IsZero() {
+		stateTimeStr = s.relayStateTime.Format(time.RFC3339)
+	}
+
 	return AutomationStatus{
-		Connected:   s.connected,
-		RelayState:  s.relayState,
-		LastData:    s.lastData,
-		LastUpdated: lastUpdatedStr,
-		Settings:    s.settings,
-		RawJSON:     s.rawJSON,
+		Connected:      s.connected,
+		RelayState:     s.relayState,
+		RelayStateTime: stateTimeStr,
+		LastData:       s.lastData,
+		LastUpdated:    lastUpdatedStr,
+		Settings:       s.settings,
+		RawJSON:        s.rawJSON,
 	}
 }
 
@@ -315,7 +340,68 @@ func (s *AutomationService) handleStateMessage(client mqtt.Client, msg mqtt.Mess
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.relayState = string(msg.Payload())
+	newState := string(msg.Payload())
+	if s.relayState != newState {
+		s.relayState = newState
+		s.relayStateTime = time.Now()
+	}
 	s.lastUpdated = time.Now()
 	log.Printf("[MQTT] Relay state updated to: %s\n", s.relayState)
+}
+
+func (s *AutomationService) runSchedulerLoop() {
+	ticker := time.NewTicker(5 * time.Second) // Check every 5 seconds for responsive schedules
+	for range ticker.C {
+		s.mu.Lock()
+		db := s.db
+		if db == nil || s.settings == nil || !s.settings.SchedulerActive {
+			s.mu.Unlock()
+			continue
+		}
+
+		relayState := s.relayState
+		stateTime := s.relayStateTime
+		timeOn := s.settings.TimeOn
+		timeOff := s.settings.TimeOff
+		s.mu.Unlock()
+
+		if stateTime.IsZero() {
+			s.mu.Lock()
+			s.relayStateTime = time.Now()
+			s.mu.Unlock()
+			continue
+		}
+
+		elapsed := time.Since(stateTime)
+
+		if relayState == "ON" {
+			limit := time.Duration(timeOn) * time.Minute
+			if elapsed >= limit {
+				log.Printf("[SCHEDULER] ON time limit reached (%d min). Turning relay OFF.\n", timeOn)
+				s.SendCommand("off")
+				s.mu.Lock()
+				s.relayState = "OFF"
+				s.relayStateTime = time.Now()
+				s.mu.Unlock()
+			}
+		} else if relayState == "OFF" {
+			limit := time.Duration(timeOff) * time.Minute
+			if elapsed >= limit {
+				log.Printf("[SCHEDULER] OFF time limit reached (%d min). Turning relay ON.\n", timeOff)
+				s.SendCommand("on")
+				s.mu.Lock()
+				s.relayState = "ON"
+				s.relayStateTime = time.Now()
+				s.mu.Unlock()
+			}
+		} else {
+			// If status is Desconocido (Unknown), default to turning it OFF to initialize
+			log.Println("[SCHEDULER] Relay state is unknown. Enforcing OFF state to initialize cycle.")
+			s.SendCommand("off")
+			s.mu.Lock()
+			s.relayState = "OFF"
+			s.relayStateTime = time.Now()
+			s.mu.Unlock()
+		}
+	}
 }
