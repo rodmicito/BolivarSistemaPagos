@@ -57,9 +57,9 @@ func GetAutomationService() *AutomationService {
 			brokerURL:  "77.42.17.7:11884",
 			settings: &models.AutomationSetting{
 				Broker:           "77.42.17.7:11884",
-				RelayCmdTopic:    "rele/cmd",
+				RelayCmdTopic:    "nivelPrueba/cmd",
 				RelayStateTopic:  "rele/state",
-				TelemetryTopic:   "rele",
+				TelemetryTopic:   "nP1",
 				KeyPorcentaje:    "porcentaje",
 				KeyNivel:         "nivel",
 				KeyDistancia:     "distancia",
@@ -94,9 +94,9 @@ func (s *AutomationService) LoadSettings() {
 		// Create default settings if not exists
 		settings = models.AutomationSetting{
 			Broker:           "77.42.17.7:11884",
-			RelayCmdTopic:    "rele/cmd",
+			RelayCmdTopic:    "nivelPrueba/cmd",
 			RelayStateTopic:  "rele/state",
-			TelemetryTopic:   "rele",
+			TelemetryTopic:   "nP1",
 			KeyPorcentaje:    "porcentaje",
 			KeyNivel:         "nivel",
 			KeyDistancia:     "distancia",
@@ -107,6 +107,20 @@ func (s *AutomationService) LoadSettings() {
 			KeyLm2:           "lm2",
 		}
 		s.db.Create(&settings)
+	} else {
+		// Auto-migrate old defaults on existing databases to the new targets
+		updated := false
+		if settings.RelayCmdTopic == "rele/cmd" {
+			settings.RelayCmdTopic = "nivelPrueba/cmd"
+			updated = true
+		}
+		if settings.TelemetryTopic == "rele" {
+			settings.TelemetryTopic = "nP1"
+			updated = true
+		}
+		if updated {
+			s.db.Save(&settings)
+		}
 	}
 	s.settings = &settings
 	s.brokerURL = settings.Broker
