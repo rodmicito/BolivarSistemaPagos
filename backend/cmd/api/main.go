@@ -12,6 +12,7 @@ import (
 	"github.com/erick/pagosbolivar/internal/database"
 	"github.com/erick/pagosbolivar/internal/handlers"
 	"github.com/erick/pagosbolivar/internal/models"
+	"github.com/erick/pagosbolivar/internal/services"
 )
 
 func main() {
@@ -95,6 +96,13 @@ func main() {
 			}
 		}
 	}
+
+	// Start the background MQTT Automation service
+	mqttBroker := os.Getenv("MQTT_BROKER")
+	if mqttBroker == "" {
+		mqttBroker = "77.42.17.7:11884"
+	}
+	services.GetAutomationService().Start(mqttBroker)
 
 	// Create Gin router
 	r := gin.Default()

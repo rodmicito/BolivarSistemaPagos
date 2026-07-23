@@ -5,6 +5,7 @@ import Pagos from './pages/Pagos';
 import Contratos from './pages/Contratos';
 import Inquilinos from './pages/Inquilinos';
 import Habitaciones from './pages/Habitaciones';
+import Automatizacion from './pages/Automatizacion';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/contratos" element={<Contratos />} />
           <Route path="/inquilinos" element={<Inquilinos />} />
           <Route path="/habitaciones" element={<Habitaciones />} />
+          <Route path="/automatizacion" element={<Automatizacion />} />
         </Routes>
       </Layout>
     </BrowserRouter>

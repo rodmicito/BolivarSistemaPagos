@@ -7,3 +7,20 @@
     @apply bg-slate-50 text-slate-900 transition-colors duration-200 dark:bg-slate-900 dark:text-slate-100;
   }
 }
+
+@keyframes wave-shift {
+  0% {
+    transform: translateY(0) scaleY(1);
+  }
+  50% {
+    transform: translateY(-2px) scaleY(1.05) skewX(1deg);
+  }
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+.animate-wave-shift {
+  animation: wave-shift 2.5s ease-in-out infinite;
+}
+

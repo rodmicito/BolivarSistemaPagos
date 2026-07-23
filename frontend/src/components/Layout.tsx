@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Users, FileText, CreditCard, LogOut, Activity, Sun, Moon, Menu, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Home, Users, FileText, CreditCard, LogOut, Activity, Sun, Moon, Menu, ChevronLeft, ChevronRight, X, Cpu } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -124,6 +124,16 @@ export default function Layout({ children }: LayoutProps) {
               >
                 <CreditCard size={22} className="flex-shrink-0" />
                 <span className={`text-[15px] truncate transition-all duration-200 ${isSidebarCollapsed ? 'md:hidden' : 'block'}`}>Pagos</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink 
+                to="/automatizacion" 
+                className={({isActive}) => `flex items-center ${isSidebarCollapsed ? 'md:justify-center md:px-0' : 'gap-4 px-4'} py-3 rounded-lg transition-all duration-255 font-medium ${isActive ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white'}`}
+                onClick={() => setIsSidebarOpen(false)}
+              >
+                <Cpu size={22} className="flex-shrink-0" />
+                <span className={`text-[15px] truncate transition-all duration-200 ${isSidebarCollapsed ? 'md:hidden' : 'block'}`}>Automatización</span>
               </NavLink>
             </li>
             <li className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/80">

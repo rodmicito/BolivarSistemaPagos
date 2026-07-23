@@ -180,4 +180,51 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
         db.Save(&pago)
         c.JSON(http.StatusOK, pago)
     })
+
+    // === AUTOMATION ===
+    api.GET("/automation/status", func(c *gin.Context) {
+        status := services.GetAutomationService().GetStatus()
+        c.JSON(http.StatusOK, status)
+    })
+
+    api.POST("/automation/connect", func(c *gin.Context) {
+        var req struct {
+            Broker  string `json:"broker"`
+            Connect bool   `json:"connect"`
+        }
+        if err := c.ShouldBindJSON(&req); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            return
+        }
+
+        service := services.GetAutomationService()
+        if req.Connect {
+            if req.Broker == "" {
+                req.Broker = "77.42.17.7:11884"
+            }
+            service.Start(req.Broker)
+        } else {
+            service.Stop()
+        }
+
+        c.JSON(http.StatusOK, service.GetStatus())
+    })
+
+    api.POST("/automation/command", func(c *gin.Context) {
+        var req struct {
+            Command string `json:"command"`
+        }
+        if err := c.ShouldBindJSON(&req); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            return
+        }
+
+        service := services.GetAutomationService()
+        if err := service.SendCommand(req.Command); err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
+
+        c.JSON(http.StatusOK, gin.H{"message": "Command sent successfully"})
+    })
 }
