@@ -97,12 +97,13 @@ func main() {
 		}
 	}
 
+	// Initialize GORM connection inside automation service and load settings
+	services.GetAutomationService().SetDB(db)
+
 	// Start the background MQTT Automation service
-	mqttBroker := os.Getenv("MQTT_BROKER")
-	if mqttBroker == "" {
-		mqttBroker = "77.42.17.7:11884"
-	}
-	services.GetAutomationService().Start(mqttBroker)
+	automationStatus := services.GetAutomationService().GetStatus()
+	services.GetAutomationService().Start(automationStatus.Settings.Broker)
+
 
 	// Create Gin router
 	r := gin.Default()

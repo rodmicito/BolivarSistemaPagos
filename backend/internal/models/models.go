@@ -60,3 +60,20 @@ type PagoMensual struct {
 	UpdatedAt        time.Time
 	DeletedAt        gorm.DeletedAt `gorm:"index"`
 }
+
+type AutomationSetting struct {
+	ID               uint   `json:"id" gorm:"primaryKey"`
+	Broker           string `json:"broker"`
+	RelayCmdTopic    string `json:"relay_cmd_topic"`
+	RelayStateTopic  string `json:"relay_state_topic"`
+	TelemetryTopic   string `json:"telemetry_topic"`
+	KeyPorcentaje    string `json:"key_porcentaje"`
+	KeyNivel         string `json:"key_nivel"`
+	KeyDistancia     string `json:"key_distancia"`
+	KeyCaudalEntrada string `json:"key_caudal_entrada"`
+	KeyCaudalSalida  string `json:"key_caudal_salida"`
+	KeyBalance       string `json:"key_balance"`
+	KeyLm            string `json:"key_lm"`
+	KeyLm2           string `json:"key_lm2"`
+}
+

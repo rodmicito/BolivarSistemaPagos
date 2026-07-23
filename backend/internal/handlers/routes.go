@@ -227,4 +227,20 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 
         c.JSON(http.StatusOK, gin.H{"message": "Command sent successfully"})
     })
+
+    api.PUT("/automation/settings", func(c *gin.Context) {
+        var req models.AutomationSetting
+        if err := c.ShouldBindJSON(&req); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            return
+        }
+
+        service := services.GetAutomationService()
+        if err := service.UpdateSettings(req); err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
+
+        c.JSON(http.StatusOK, service.GetStatus())
+    })
 }

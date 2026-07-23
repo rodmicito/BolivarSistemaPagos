@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Cpu, Power, Droplet, RefreshCw, Radio, HardDrive, Info } from 'lucide-react';
+import { Cpu, Power, Droplet, RefreshCw, Radio, HardDrive, Info, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface ESP32Data {
   lm: string;
@@ -12,11 +12,28 @@ interface ESP32Data {
   porcentaje: string;
 }
 
+interface AutomationSetting {
+  id?: number;
+  broker: string;
+  relay_cmd_topic: string;
+  relay_state_topic: string;
+  telemetry_topic: string;
+  key_porcentaje: string;
+  key_nivel: string;
+  key_distancia: string;
+  key_caudal_entrada: string;
+  key_caudal_salida: string;
+  key_balance: string;
+  key_lm: string;
+  key_lm2: string;
+}
+
 interface AutomationStatus {
   connected: boolean;
   relay_state: string;
   last_data: ESP32Data | null;
   last_updated: string;
+  settings: AutomationSetting | null;
 }
 
 export default function Automatizacion() {
@@ -26,10 +43,32 @@ export default function Automatizacion() {
     relay_state: 'Desconocido',
     last_data: null,
     last_updated: '',
+    settings: null,
   });
+  
+  // Local edit state for settings
+  const [settings, setSettings] = useState<AutomationSetting>({
+    broker: '77.42.17.7:11884',
+    relay_cmd_topic: 'rele/cmd',
+    relay_state_topic: 'rele/state',
+    telemetry_topic: 'rele',
+    key_porcentaje: 'porcentaje',
+    key_nivel: 'nivel',
+    key_distancia: 'distancia',
+    key_caudal_entrada: 'caudal_entrada',
+    key_caudal_salida: 'caudal_salida',
+    key_balance: 'balance',
+    key_lm: 'lm',
+    key_lm2: 'lm2',
+  });
+
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const pollInterval = useRef<any>(null);
+  const settingsSectionRef = useRef<HTMLDivElement | null>(null);
 
   const fetchStatus = () => {
     fetch('/api/automation/status')
@@ -39,6 +78,13 @@ export default function Automatizacion() {
       })
       .then((data: AutomationStatus) => {
         setStatus(data);
+        if (data.settings) {
+          setBroker(data.settings.broker);
+          if (!settingsLoaded) {
+            setSettings(data.settings);
+            setSettingsLoaded(true);
+          }
+        }
         setError(null);
       })
       .catch((err) => {
@@ -48,9 +94,7 @@ export default function Automatizacion() {
   };
 
   useEffect(() => {
-    // Initial fetch
     fetchStatus();
-    // Poll every 1 second
     pollInterval.current = setInterval(fetchStatus, 1000);
 
     return () => {
@@ -58,7 +102,7 @@ export default function Automatizacion() {
         clearInterval(pollInterval.current);
       }
     };
-  }, []);
+  }, [settingsLoaded]);
 
   const handleConnectToggle = () => {
     setLoading(true);
@@ -90,13 +134,48 @@ export default function Automatizacion() {
     })
       .then((res) => {
         if (!res.ok) throw new Error('Error al enviar comando');
-        // Refresh status shortly after sending command
         setTimeout(fetchStatus, 300);
       })
       .catch((err) => {
         console.error(err);
         setError(`No se pudo enviar el comando "${cmd}"`);
       });
+  };
+
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setSuccessMsg(null);
+    fetch('/api/automation/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al guardar configuración');
+        return res.json();
+      })
+      .then((data: AutomationStatus) => {
+        setStatus(data);
+        if (data.settings) {
+          setSettings(data.settings);
+        }
+        setLoading(false);
+        setSuccessMsg('Configuración guardada y aplicada con éxito');
+        setTimeout(() => setSuccessMsg(null), 4000);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError('No se pudo guardar la configuración de los tópicos');
+        setLoading(false);
+      });
+  };
+
+  const scrollToSettings = () => {
+    setShowSettings(true);
+    setTimeout(() => {
+      settingsSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   // Safe parsing values
@@ -122,23 +201,39 @@ export default function Automatizacion() {
             Monitoreo en tiempo real de caudalímetros, nivel del tanque y actuadores a través de Thingsees Server.
           </p>
         </div>
-        {status.connected ? (
-          <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">
-            <Radio size={14} className="animate-pulse" />
-            Conectado a Thingsees
-          </span>
-        ) : (
-          <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-            <Radio size={14} />
-            Desconectado
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={scrollToSettings}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-350 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+          >
+            <Settings size={14} />
+            Editar Tópicos
+          </button>
+          {status.connected ? (
+            <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">
+              <Radio size={14} className="animate-pulse" />
+              Conectado
+            </span>
+          ) : (
+            <span className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+              <Radio size={14} />
+              Desconectado
+            </span>
+          )}
+        </div>
       </div>
 
       {error && (
         <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-400 p-4 rounded-xl text-sm font-medium flex items-center gap-3">
           <Info size={18} className="flex-shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {successMsg && (
+        <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 p-4 rounded-xl text-sm font-medium flex items-center gap-3">
+          <Info size={18} className="flex-shrink-0" />
+          <span>{successMsg}</span>
         </div>
       )}
 
@@ -189,28 +284,39 @@ export default function Automatizacion() {
           </div>
 
           {/* Actuator Relay Card */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-2">
-              <Cpu size={20} className="text-indigo-500" />
-              Controlador de Relé
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-              Control manual del actuador rele (GPIO 26) en el módulo ESP32.
-            </p>
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 relative overflow-hidden flex flex-col justify-between h-[360px]">
+            <div>
+              <div className="flex justify-between items-start">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <Cpu size={20} className="text-indigo-500" />
+                  Controlador de Relé
+                </h3>
+                <button 
+                  onClick={scrollToSettings}
+                  className="text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-[10px] font-bold"
+                  title="Configurar tópicos de relé"
+                >
+                  Configurar
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Control manual de relé (GPIO 26) en el módulo ESP32.
+              </p>
+            </div>
 
-            <div className="flex flex-col items-center space-y-6">
+            <div className="flex flex-col items-center space-y-4 my-2">
               {/* Giant Relay Status Display */}
-              <div className="flex flex-col items-center space-y-2">
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ${
+              <div className="flex flex-col items-center space-y-1">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ${
                   status.relay_state === 'ON'
                     ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-4 border-emerald-500'
                     : status.relay_state === 'OFF'
                     ? 'bg-slate-100 dark:bg-slate-900 text-slate-400 border-4 border-slate-300 dark:border-slate-700'
                     : 'bg-amber-100 dark:bg-amber-950 text-amber-500 dark:text-amber-400 border-4 border-amber-400'
                 }`}>
-                  <Power size={36} className={status.relay_state === 'ON' ? 'animate-pulse' : ''} />
+                  <Power size={28} className={status.relay_state === 'ON' ? 'animate-pulse' : ''} />
                 </div>
-                <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-350">
                   Estado: {status.relay_state === 'ON' ? 'ENCENDIDO' : status.relay_state === 'OFF' ? 'APAGADO' : 'DESCONOCIDO'}
                 </span>
               </div>
@@ -219,45 +325,32 @@ export default function Automatizacion() {
               <div className="grid grid-cols-2 gap-3 w-full">
                 <button
                   onClick={() => handleCommand('on')}
-                  className="py-2.5 px-4 rounded-xl font-medium text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm"
+                  className="py-2 px-4 rounded-xl font-medium text-xs bg-emerald-600 hover:bg-emerald-700 text-white transition-colors shadow-sm"
                 >
                   Encender
                 </button>
                 <button
                   onClick={() => handleCommand('off')}
-                  className="py-2.5 px-4 rounded-xl font-medium text-xs bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-sm"
+                  className="py-2 px-4 rounded-xl font-medium text-xs bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-sm"
                 >
                   Apagar
                 </button>
               </div>
+            </div>
 
-              <div className="border-t border-slate-150 dark:border-slate-700/80 w-full pt-4 space-y-3">
-                <span className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Comandos Auxiliares
+            {/* Topics Info Footer */}
+            <div className="border-t border-slate-100 dark:border-slate-700/80 pt-2 flex flex-col gap-1 text-[9px] text-slate-400 dark:text-slate-500">
+              <div className="flex justify-between">
+                <span>Tópico Cmd:</span>
+                <span className="font-mono bg-slate-100 dark:bg-slate-900 px-1 rounded truncate max-w-[150px]">
+                  {status.settings?.relay_cmd_topic || 'rele/cmd'}
                 </span>
-                
-                <div className="grid grid-cols-2 gap-2 w-full">
-                  <button
-                    onClick={() => handleCommand('ledon')}
-                    className="py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-[11px] font-medium text-slate-700 dark:text-slate-350 transition-colors"
-                  >
-                    💡 Encender LED
-                  </button>
-                  <button
-                    onClick={() => handleCommand('ledoff')}
-                    className="py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-[11px] font-medium text-slate-700 dark:text-slate-350 transition-colors"
-                  >
-                    🔌 Apagar LED
-                  </button>
-                </div>
-                
-                <button
-                  onClick={() => handleCommand('/zero')}
-                  className="w-full py-2 px-3 rounded-lg bg-slate-100 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-medium text-slate-700 dark:text-slate-350 transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <RefreshCw size={12} />
-                  Resetear Pulsos Caudalímetro
-                </button>
+              </div>
+              <div className="flex justify-between">
+                <span>Tópico State:</span>
+                <span className="font-mono bg-slate-100 dark:bg-slate-900 px-1 rounded truncate max-w-[150px]">
+                  {status.settings?.relay_state_topic || 'rele/state'}
+                </span>
               </div>
             </div>
           </div>
@@ -265,20 +358,29 @@ export default function Automatizacion() {
 
         {/* Column 2: Water Level Visual Tank */}
         <div className="space-y-6 lg:col-span-1">
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 flex flex-col h-full justify-between">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 flex flex-col h-[492px] justify-between">
             <div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-2">
-                <Droplet size={20} className="text-blue-500" />
-                Nivel de Agua
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-                Indicador visual del porcentaje de volumen del tanque de reserva.
+              <div className="flex justify-between items-start">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <Droplet size={20} className="text-blue-500" />
+                  Nivel de Agua
+                </h3>
+                <button 
+                  onClick={scrollToSettings}
+                  className="text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:underline text-[10px] font-bold"
+                  title="Configurar telemetría y claves JSON"
+                >
+                  Configurar
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Visualización gráfica del volumen del tanque de reserva.
               </p>
             </div>
 
             {/* Visual Tank Component */}
-            <div className="flex flex-col items-center justify-center my-6 flex-1">
-              <div className="relative w-44 h-64 border-4 border-slate-300 dark:border-slate-600 rounded-2xl overflow-hidden shadow-inner bg-slate-100 dark:bg-slate-900/40">
+            <div className="flex flex-col items-center justify-center my-4 flex-1">
+              <div className="relative w-40 h-56 border-4 border-slate-300 dark:border-slate-600 rounded-2xl overflow-hidden shadow-inner bg-slate-100 dark:bg-slate-900/40">
                 {/* Water Liquid Fill */}
                 <div 
                   className="absolute bottom-0 left-0 right-0 bg-blue-500/80 dark:bg-blue-600/70 transition-all duration-1000 ease-out flex items-center justify-center"
@@ -306,22 +408,30 @@ export default function Automatizacion() {
               </div>
             </div>
 
-            {/* Values */}
-            <div className="grid grid-cols-2 gap-4 border-t border-slate-150 dark:border-slate-700/80 pt-4">
-              <div className="text-center">
-                <span className="block text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase">
-                  Nivel de Agua
-                </span>
-                <span className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                  {nivel} cm
-                </span>
+            {/* Config metadata footer */}
+            <div className="border-t border-slate-100 dark:border-slate-700/80 pt-3 space-y-2">
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div>
+                  <span className="block text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase">
+                    Nivel ({status.settings?.key_nivel || 'nivel'})
+                  </span>
+                  <span className="text-base font-bold text-slate-800 dark:text-slate-200">
+                    {nivel} cm
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase">
+                    Distancia ({status.settings?.key_distancia || 'distancia'})
+                  </span>
+                  <span className="text-base font-bold text-slate-800 dark:text-slate-200">
+                    {distancia} cm
+                  </span>
+                </div>
               </div>
-              <div className="text-center">
-                <span className="block text-xs text-slate-400 dark:text-slate-500 font-semibold uppercase">
-                  Distancia Sensor
-                </span>
-                <span className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                  {distancia} cm
+              <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 border-t border-slate-50 dark:border-slate-800 pt-1.5">
+                <span>Tópico de Telemetría:</span>
+                <span className="font-mono bg-slate-100 dark:bg-slate-900 px-1 rounded truncate max-w-[160px]">
+                  {status.settings?.telemetry_topic || 'rele'}
                 </span>
               </div>
             </div>
@@ -331,95 +441,67 @@ export default function Automatizacion() {
         {/* Column 3: Flow Rates & Raw counters */}
         <div className="space-y-6 lg:col-span-1">
           {/* Flow Rates Card */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-2">
-              <Droplet size={20} className="text-cyan-500" />
-              Caudales y Flujo
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-              Mediciones de flujo de entrada y salida registradas en L/min.
-            </p>
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 h-[264px] flex flex-col justify-between">
+            <div>
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Droplet size={18} className="text-cyan-500" />
+                Caudales ({status.settings?.key_caudal_entrada || 'entrada'} / {status.settings?.key_caudal_salida || 'salida'})
+              </h3>
+            </div>
 
-            <div className="space-y-4">
-              {/* Caudal Entrada */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-700/50 flex justify-between items-center">
-                <div>
-                  <span className="block text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase">
-                    Caudal Entrada
-                  </span>
-                  <span className="text-xl font-bold text-slate-800 dark:text-slate-100">
-                    {caudalEntrada} L/min
-                  </span>
-                </div>
-                <div className="w-2 h-8 rounded-full bg-emerald-500" />
+            <div className="space-y-2 flex-1 flex flex-col justify-center">
+              <div className="flex justify-between items-center text-sm py-1.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-900/50">
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Caudal Entrada:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-250">{caudalEntrada} L/min</span>
               </div>
-
-              {/* Caudal Salida */}
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-700/50 flex justify-between items-center">
-                <div>
-                  <span className="block text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase">
-                    Caudal Salida
-                  </span>
-                  <span className="text-xl font-bold text-slate-800 dark:text-slate-100">
-                    {caudalSalida} L/min
-                  </span>
-                </div>
-                <div className="w-2 h-8 rounded-full bg-rose-500" />
+              <div className="flex justify-between items-center text-sm py-1.5 px-3 rounded-lg bg-slate-50 dark:bg-slate-900/50">
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Caudal Salida:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-250">{caudalSalida} L/min</span>
               </div>
-
-              {/* Balance */}
-              <div className={`p-4 rounded-xl border flex justify-between items-center ${
+              <div className={`flex justify-between items-center text-sm py-1.5 px-3 rounded-lg border ${
                 parseFloat(balance) >= 0
-                  ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-100 dark:border-emerald-900/30'
-                  : 'bg-rose-50/50 dark:bg-rose-950/10 border-rose-100 dark:border-rose-900/30'
+                  ? 'bg-emerald-50/40 dark:bg-emerald-950/10 border-emerald-100 dark:border-emerald-900/20'
+                  : 'bg-rose-50/40 dark:bg-rose-950/10 border-rose-100 dark:border-rose-900/20'
               }`}>
-                <div>
-                  <span className="block text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase">
-                    Balance Neto
-                  </span>
-                  <span className={`text-xl font-bold ${parseFloat(balance) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                    {balance} L/min
-                  </span>
-                </div>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  parseFloat(balance) >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400'
-                }`}>
-                  {parseFloat(balance) >= 0 ? '+' : '-'}
-                </div>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Balance Neto:</span>
+                <span className={`font-black ${parseFloat(balance) >= 0 ? 'text-emerald-600 dark:text-emerald-450' : 'text-rose-600 dark:text-rose-450'}`}>
+                  {balance} L/min
+                </span>
               </div>
+            </div>
+
+            <div className="text-[9px] text-slate-400 dark:text-slate-500 text-right mt-1">
+              Clave Balance: <span className="font-mono bg-slate-100 dark:bg-slate-900 px-1 rounded">{status.settings?.key_balance || 'balance'}</span>
             </div>
           </div>
 
           {/* Raw Pulses Counter */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-2">
-              <HardDrive size={20} className="text-slate-500" />
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 h-[202px] flex flex-col justify-between">
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <HardDrive size={18} className="text-slate-500" />
               Contadores de Pulsos
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-              Número bruto de pulsos de sensor acumulados en el microcontrolador.
-            </p>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-700/50 text-center">
-                <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
-                  Pulsos Entrada (lm)
+            <div className="grid grid-cols-2 gap-3 my-2">
+              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-center">
+                <span className="block text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                  lm ({status.settings?.key_lm || 'lm'})
                 </span>
-                <span className="text-2xl font-black text-slate-700 dark:text-slate-350 block mt-1">
+                <span className="text-lg font-black text-slate-700 dark:text-slate-300 block mt-0.5">
                   {lm}
                 </span>
               </div>
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-700/50 text-center">
-                <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
-                  Pulsos Salida (lm2)
+              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-center">
+                <span className="block text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                  lm2 ({status.settings?.key_lm2 || 'lm2'})
                 </span>
-                <span className="text-2xl font-black text-slate-700 dark:text-slate-350 block mt-1">
+                <span className="text-lg font-black text-slate-700 dark:text-slate-300 block mt-0.5">
                   {lm2}
                 </span>
               </div>
             </div>
 
-            <div className="mt-4 flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500 justify-end">
+            <div className="flex items-center justify-between text-[9px] text-slate-400 dark:text-slate-500 pt-1.5 border-t border-slate-50 dark:border-slate-800">
               <span>Última actualización:</span>
               <span className="font-semibold">
                 {status.last_updated ? new Date(status.last_updated).toLocaleTimeString() : 'Nunca'}
@@ -429,6 +511,214 @@ export default function Automatizacion() {
         </div>
 
       </div>
+
+      {/* Collapsible Config Section */}
+      <div ref={settingsSectionRef} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-all duration-200">
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          className="w-full p-6 flex justify-between items-center text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+        >
+          <div className="flex items-center gap-2.5 text-left">
+            <Settings size={22} className="text-indigo-500" />
+            <div>
+              <h3 className="text-lg font-bold">Configuración de Tópicos y Mapeo JSON</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Personaliza los nombres de los tópicos MQTT y las claves de los campos del JSON enviado por el ESP32.
+              </p>
+            </div>
+          </div>
+          {showSettings ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+        </button>
+
+        {showSettings && (
+          <form onSubmit={handleSaveSettings} className="p-6 border-t border-slate-150 dark:border-slate-700/80 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Tópicos MQTT */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700/50 pb-2">
+                  Tópicos MQTT
+                </h4>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-350 mb-1.5">
+                    Broker IP y Puerto
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.broker}
+                    onChange={(e) => setSettings({ ...settings, broker: e.target.value })}
+                    required
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-350 mb-1.5">
+                    Tópico de Telemetría (Subscribirse para datos)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.telemetry_topic}
+                    onChange={(e) => setSettings({ ...settings, telemetry_topic: e.target.value })}
+                    required
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-350 mb-1.5">
+                      Tópico Comandos (Cmd)
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.relay_cmd_topic}
+                      onChange={(e) => setSettings({ ...settings, relay_cmd_topic: e.target.value })}
+                      required
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-350 mb-1.5">
+                      Tópico Estado Rele
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.relay_state_topic}
+                      onChange={(e) => setSettings({ ...settings, relay_state_topic: e.target.value })}
+                      required
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Mapeo JSON de Variables */}
+              <div className="space-y-4">
+                <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-700/50 pb-2">
+                  Claves JSON (Mapeo de Variables)
+                </h4>
+                
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Porcentaje (%)
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.key_porcentaje}
+                      onChange={(e) => setSettings({ ...settings, key_porcentaje: e.target.value })}
+                      required
+                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Nivel Tanque (cm)
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.key_nivel}
+                      onChange={(e) => setSettings({ ...settings, key_nivel: e.target.value })}
+                      required
+                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Distancia (cm)
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.key_distancia}
+                      onChange={(e) => setSettings({ ...settings, key_distancia: e.target.value })}
+                      required
+                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Caudal Entrada
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.key_caudal_entrada}
+                      onChange={(e) => setSettings({ ...settings, key_caudal_entrada: e.target.value })}
+                      required
+                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Caudal Salida
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.key_caudal_salida}
+                      onChange={(e) => setSettings({ ...settings, key_caudal_salida: e.target.value })}
+                      required
+                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Balance Flujo
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.key_balance}
+                      onChange={(e) => setSettings({ ...settings, key_balance: e.target.value })}
+                      required
+                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Pulsos Entrada (lm)
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.key_lm}
+                      onChange={(e) => setSettings({ ...settings, key_lm: e.target.value })}
+                      required
+                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                      Pulsos Salida (lm2)
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.key_lm2}
+                      onChange={(e) => setSettings({ ...settings, key_lm2: e.target.value })}
+                      required
+                      className="w-full border border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-700/50">
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                {loading ? <RefreshCw size={16} className="animate-spin" /> : 'Guardar Configuración'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
     </div>
   );
 }
