@@ -531,7 +531,7 @@ export default function Automatizacion() {
 
               <button
                 onClick={() => handleSaveTimesOnly(settings.time_on, settings.time_off)}
-                className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-slate-700 dark:hover:bg-slate-655 text-indigo-700 dark:text-indigo-300 font-bold text-xs rounded-lg transition-colors"
+                className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-indigo-700 dark:text-indigo-300 font-bold text-xs rounded-lg transition-colors"
               >
                 Guardar Intervalos
               </button>
@@ -770,7 +770,7 @@ export default function Automatizacion() {
                     value={settings.broker}
                     onChange={(e) => setSettings({ ...settings, broker: e.target.value })}
                     required
-                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                   />
                 </div>
 
@@ -783,7 +783,7 @@ export default function Automatizacion() {
                     value={settings.telemetry_topic}
                     onChange={(e) => setSettings({ ...settings, telemetry_topic: e.target.value })}
                     required
-                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                   />
                 </div>
 
@@ -797,7 +797,7 @@ export default function Automatizacion() {
                       value={settings.relay_cmd_topic}
                       onChange={(e) => setSettings({ ...settings, relay_cmd_topic: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                     />
                   </div>
                   <div>
@@ -809,7 +809,7 @@ export default function Automatizacion() {
                       value={settings.relay_state_topic}
                       onChange={(e) => setSettings({ ...settings, relay_state_topic: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                     />
                   </div>
                 </div>
@@ -831,7 +831,7 @@ export default function Automatizacion() {
                       value={settings.key_porcentaje}
                       onChange={(e) => setSettings({ ...settings, key_porcentaje: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -843,7 +843,7 @@ export default function Automatizacion() {
                       value={settings.key_nivel}
                       onChange={(e) => setSettings({ ...settings, key_nivel: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -855,7 +855,7 @@ export default function Automatizacion() {
                       value={settings.key_distancia}
                       onChange={(e) => setSettings({ ...settings, key_distancia: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -870,7 +870,7 @@ export default function Automatizacion() {
                       value={settings.key_caudal_entrada}
                       onChange={(e) => setSettings({ ...settings, key_caudal_entrada: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -882,7 +882,7 @@ export default function Automatizacion() {
                       value={settings.key_caudal_salida}
                       onChange={(e) => setSettings({ ...settings, key_caudal_salida: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -894,7 +894,7 @@ export default function Automatizacion() {
                       value={settings.key_balance}
                       onChange={(e) => setSettings({ ...settings, key_balance: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -909,7 +909,7 @@ export default function Automatizacion() {
                       value={settings.key_lm}
                       onChange={(e) => setSettings({ ...settings, key_lm: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
                     />
                   </div>
                   <div>
@@ -921,7 +921,7 @@ export default function Automatizacion() {
                       value={settings.key_lm2}
                       onChange={(e) => setSettings({ ...settings, key_lm2: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
                     />
                   </div>
                 </div>
