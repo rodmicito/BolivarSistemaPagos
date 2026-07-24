@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Cpu, Power, Droplet, RefreshCw, Radio, HardDrive, Info, Settings, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Cpu, Power, Droplet, RefreshCw, Radio, HardDrive, Info, Settings, ChevronDown, ChevronUp, Clock, Database } from 'lucide-react';
 
 interface ESP32Data {
   lm: string;
@@ -29,6 +29,8 @@ interface AutomationSetting {
   scheduler_active: boolean;
   time_on: number;
   time_off: number;
+  db_log_active: boolean;
+  db_log_interval: number;
 }
 
 interface AutomationStatus {
@@ -74,6 +76,8 @@ export default function Automatizacion() {
     scheduler_active: false,
     time_on: 15,
     time_off: 45,
+    db_log_active: false,
+    db_log_interval: 5,
   });
 
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -276,6 +280,72 @@ export default function Automatizacion() {
       .catch((err) => {
         console.error(err);
         setError('No se pudieron guardar los intervalos');
+        setLoading(false);
+      });
+  };
+
+  const handleToggleDbLogging = (active: boolean) => {
+    if (!status.settings) return;
+    setLoading(true);
+    const updatedSettings = {
+      ...status.settings,
+      db_log_active: active,
+    };
+
+    fetch('/api/automation/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedSettings),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al alternar guardado en BD');
+        return res.json();
+      })
+      .then((data: AutomationStatus) => {
+        setStatus(data);
+        if (data.settings) {
+          setSettings(data.settings);
+        }
+        setLoading(false);
+        setSuccessMsg(active ? 'Guardado en BD activado' : 'Guardado en BD desactivado');
+        setTimeout(() => setSuccessMsg(null), 3000);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError('No se pudo cambiar el estado del guardado en BD');
+        setLoading(false);
+      });
+  };
+
+  const handleSaveDbInterval = (interval: number) => {
+    if (!status.settings) return;
+    setLoading(true);
+    const updatedSettings = {
+      ...status.settings,
+      db_log_interval: interval,
+    };
+
+    fetch('/api/automation/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedSettings),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al guardar intervalo de BD');
+        return res.json();
+      })
+      .then((data: AutomationStatus) => {
+        setStatus(data);
+        if (data.settings) {
+          setSettings(data.settings);
+        }
+        setLoading(false);
+        setSuccessMsg('Intervalo de guardado en BD guardado con éxito');
+        setTimeout(() => setSuccessMsg(null), 3000);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError('No se pudo guardar el intervalo de guardado en BD');
         setLoading(false);
       });
   };
@@ -554,6 +624,69 @@ export default function Automatizacion() {
                   </span>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Card 3: Database Logging Settings */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Database size={18} className="text-indigo-500" />
+                Registro en Base de Datos
+              </h3>
+              
+              <div className="flex items-center gap-2">
+                {status.settings?.db_log_active ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+                    ACTIVO
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                    INACTIVO
+                  </span>
+                )}
+                
+                {/* Active/Inactive Switch Toggle */}
+                <button
+                  onClick={() => handleToggleDbLogging(!status.settings?.db_log_active)}
+                  className={`w-11 h-6 rounded-full transition-colors relative flex items-center ${
+                    status.settings?.db_log_active ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-700'
+                  }`}
+                >
+                  <span className={`w-4 h-4 rounded-full bg-white absolute transition-transform shadow ${
+                    status.settings?.db_log_active ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+              Guarda automáticamente los parámetros de los tópicos, estado del relé y comandos enviados en la base de datos local SQLite.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                  Intervalo de Guardado (minutos)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    value={settings.db_log_interval}
+                    onChange={(e) => setSettings({ ...settings, db_log_interval: parseInt(e.target.value) || 1 })}
+                    className="flex-1 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    disabled={!status.settings?.db_log_active}
+                  />
+                  <button
+                    onClick={() => handleSaveDbInterval(settings.db_log_interval)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
+                    disabled={!status.settings?.db_log_active || loading}
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

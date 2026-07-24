@@ -16,8 +16,7 @@ func InitDB(dsn string) (*gorm.DB, error) {
 
 	log.Println("Database connected successfully.")
 
-	// Auto Migrate the schema
-	err = db.AutoMigrate(&models.Habitacion{}, &models.Contrato{}, &models.PagoMensual{}, &models.AutomationSetting{})
+	err = db.AutoMigrate(&models.Habitacion{}, &models.Contrato{}, &models.PagoMensual{}, &models.AutomationSetting{}, &models.TelemetryLog{})
 	if err != nil {
 		log.Printf("Failed to auto migrate: %v", err)
 		return nil, err

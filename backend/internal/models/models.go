@@ -78,6 +78,23 @@ type AutomationSetting struct {
 	SchedulerActive  bool   `json:"scheduler_active"`
 	TimeOn           int    `json:"time_on"`
 	TimeOff          int    `json:"time_off"`
+	DbLogActive      bool   `json:"db_log_active"`
+	DbLogInterval    int    `json:"db_log_interval"`
+}
+
+type TelemetryLog struct {
+	ID            uint      `json:"id" gorm:"primaryKey"`
+	Timestamp     time.Time `json:"timestamp" gorm:"index"`
+	Porcentaje    float64   `json:"porcentaje"`
+	Nivel         float64   `json:"nivel"`
+	Distancia     float64   `json:"distancia"`
+	CaudalEntrada float64   `json:"caudal_entrada"`
+	CaudalSalida  float64   `json:"caudal_salida"`
+	Balance       float64   `json:"balance"`
+	Lm            float64   `json:"lm"`
+	Lm2           float64   `json:"lm2"`
+	RelayState    string    `json:"relay_state"`
+	RelayCmd      string    `json:"relay_cmd"`
 }
 
 

@@ -49,6 +49,7 @@ type AutomationService struct {
 	rawJSON        string
 	rawCmd         string
 	rawState       string
+	lastDbLogTime  time.Time
 }
 
 var (
@@ -78,10 +79,14 @@ func GetAutomationService() *AutomationService {
 				SchedulerActive:  false,
 				TimeOn:           15,
 				TimeOff:          45,
+				DbLogActive:      false,
+				DbLogInterval:    5,
 			},
 		}
 		// Start cyclic scheduler loop in background
 		go GlobalAutomationService.runSchedulerLoop()
+		// Start database telemetry logging loop in background
+		go GlobalAutomationService.runDbLoggingLoop()
 	})
 	return GlobalAutomationService
 }
@@ -120,6 +125,8 @@ func (s *AutomationService) LoadSettings() {
 			SchedulerActive:  false,
 			TimeOn:           15,
 			TimeOff:          45,
+			DbLogActive:      false,
+			DbLogInterval:    5,
 		}
 		s.db.Create(&settings)
 	} else {
@@ -139,6 +146,10 @@ func (s *AutomationService) LoadSettings() {
 		}
 		if settings.TimeOff == 0 {
 			settings.TimeOff = 45
+			updated = true
+		}
+		if settings.DbLogInterval == 0 {
+			settings.DbLogInterval = 5
 			updated = true
 		}
 		if updated {
@@ -429,4 +440,64 @@ func (s *AutomationService) runSchedulerLoop() {
 			s.mu.Unlock()
 		}
 	}
+}
+
+func (s *AutomationService) runDbLoggingLoop() {
+	ticker := time.NewTicker(30 * time.Second) // Check every 30 seconds
+	for range ticker.C {
+		s.mu.Lock()
+		db := s.db
+		if db == nil || s.settings == nil || !s.settings.DbLogActive {
+			s.mu.Unlock()
+			continue
+		}
+
+		interval := s.settings.DbLogInterval
+		if interval <= 0 {
+			interval = 5 // Default to 5 minutes if not configured or 0
+		}
+
+		lastLogTime := s.lastDbLogTime
+		lastData := s.lastData
+		relayState := s.relayState
+		rawCmd := s.rawCmd
+		s.mu.Unlock()
+
+		if lastData == nil {
+			continue
+		}
+
+		// Check if it's time to log
+		if time.Since(lastLogTime) >= time.Duration(interval)*time.Minute {
+			// Save log
+			logEntry := models.TelemetryLog{
+				Timestamp:     time.Now(),
+				Porcentaje:    parseFloat(lastData.Porcentaje),
+				Nivel:         parseFloat(lastData.Nivel),
+				Distancia:     parseFloat(lastData.Distancia),
+				CaudalEntrada: parseFloat(lastData.CaudalEntrada),
+				CaudalSalida:  parseFloat(lastData.CaudalSalida),
+				Balance:       parseFloat(lastData.Balance),
+				Lm:            parseFloat(lastData.Lm),
+				Lm2:           parseFloat(lastData.Lm2),
+				RelayState:    relayState,
+				RelayCmd:      rawCmd,
+			}
+
+			if err := db.Create(&logEntry).Error; err != nil {
+				log.Printf("[DB LOGGING] Error creating telemetry log: %v\n", err)
+			} else {
+				log.Printf("[DB LOGGING] Saved telemetry log at %v\n", logEntry.Timestamp)
+				s.mu.Lock()
+				s.lastDbLogTime = time.Now()
+				s.mu.Unlock()
+			}
+		}
+	}
+}
+
+func parseFloat(val string) float64 {
+	var f float64
+	_, _ = fmt.Sscanf(val, "%f", &f)
+	return f
 }
