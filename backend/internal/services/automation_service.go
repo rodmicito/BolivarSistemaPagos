@@ -31,6 +31,8 @@ type AutomationStatus struct {
 	LastUpdated    string                    `json:"last_updated"`
 	Settings       *models.AutomationSetting `json:"settings"`
 	RawJSON        string                    `json:"raw_json"`
+	RawCmd         string                    `json:"raw_cmd"`
+	RawState       string                    `json:"raw_state"`
 }
 
 type AutomationService struct {
@@ -45,6 +47,8 @@ type AutomationService struct {
 	brokerURL      string
 	settings       *models.AutomationSetting
 	rawJSON        string
+	rawCmd         string
+	rawState       string
 }
 
 var (
@@ -207,6 +211,11 @@ func (s *AutomationService) Start(broker string) {
 			log.Printf("[MQTT] Error subscribing to state topic %s: %v\n", stateTopic, token.Error())
 		}
 
+		// Subscribe to command topic to monitor commands
+		if token := c.Subscribe(cmdTopic, 1, s.handleCmdMessage); token.Wait() && token.Error() != nil {
+			log.Printf("[MQTT] Error subscribing to command topic %s: %v\n", cmdTopic, token.Error())
+		}
+
 		// Request current state from ESP32
 		c.Publish(cmdTopic, 1, false, "state")
 	}
@@ -241,6 +250,10 @@ func (s *AutomationService) Stop() {
 }
 
 func (s *AutomationService) SendCommand(cmd string) error {
+	s.mu.Lock()
+	s.rawCmd = cmd
+	s.mu.Unlock()
+
 	s.mu.RLock()
 	client := s.client
 	connected := s.connected
@@ -288,6 +301,8 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		LastUpdated:    lastUpdatedStr,
 		Settings:       s.settings,
 		RawJSON:        s.rawJSON,
+		RawCmd:         s.rawCmd,
+		RawState:       s.rawState,
 	}
 }
 
@@ -341,12 +356,22 @@ func (s *AutomationService) handleStateMessage(client mqtt.Client, msg mqtt.Mess
 	defer s.mu.Unlock()
 
 	newState := string(msg.Payload())
+	s.rawState = newState
 	if s.relayState != newState {
 		s.relayState = newState
 		s.relayStateTime = time.Now()
 	}
 	s.lastUpdated = time.Now()
 	log.Printf("[MQTT] Relay state updated to: %s\n", s.relayState)
+}
+
+func (s *AutomationService) handleCmdMessage(client mqtt.Client, msg mqtt.Message) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.rawCmd = string(msg.Payload())
+	s.lastUpdated = time.Now()
+	log.Printf("[MQTT] Relay command received: %s\n", s.rawCmd)
 }
 
 func (s *AutomationService) runSchedulerLoop() {

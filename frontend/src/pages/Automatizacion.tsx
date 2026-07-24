@@ -39,6 +39,8 @@ interface AutomationStatus {
   last_updated: string;
   settings: AutomationSetting | null;
   raw_json: string;
+  raw_cmd: string;
+  raw_state: string;
 }
 
 export default function Automatizacion() {
@@ -51,6 +53,8 @@ export default function Automatizacion() {
     last_updated: '',
     settings: null,
     raw_json: '',
+    raw_cmd: '',
+    raw_state: '',
   });
   
   // Local edit state for settings
@@ -748,21 +752,73 @@ export default function Automatizacion() {
         </div>
 
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-          Último mensaje JSON completo recibido desde el broker en el tópico de telemetría:
+          Historial de tramas y mensajes en tiempo real para cada tópico (formato raw/JSON):
         </p>
-        <pre className="bg-slate-950 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-48 border border-slate-800 dark:border-slate-900 shadow-inner">
-          {status.raw_json ? (
-            (() => {
-              try {
-                return JSON.stringify(JSON.parse(status.raw_json), null, 2);
-              } catch (e) {
-                return status.raw_json;
-              }
-            })()
-          ) : (
-            <span className="text-slate-500 italic">Esperando datos del tópico...</span>
-          )}
-        </pre>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Telemetry Console */}
+          <div>
+            <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+              Consola de Telemetría ({status.settings?.telemetry_topic || 'nP1'})
+            </span>
+            <pre className="bg-slate-950 text-emerald-400 p-3.5 rounded-xl text-[10px] font-mono overflow-x-auto h-40 border border-slate-900 shadow-inner">
+              {status.raw_json ? (
+                (() => {
+                  try {
+                    return JSON.stringify(JSON.parse(status.raw_json), null, 2);
+                  } catch (e) {
+                    return status.raw_json;
+                  }
+                })()
+              ) : (
+                <span className="text-slate-500 italic">Esperando datos del tópico...</span>
+              )}
+            </pre>
+          </div>
+
+          {/* Command Console */}
+          <div>
+            <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Consola de Comandos ({status.settings?.relay_cmd_topic || 'nivelPrueba/cmd'})
+            </span>
+            <pre className="bg-slate-950 text-amber-400 p-3.5 rounded-xl text-[10px] font-mono overflow-x-auto h-40 border border-slate-900 shadow-inner">
+              {status.raw_cmd ? (
+                (() => {
+                  try {
+                    return JSON.stringify(JSON.parse(status.raw_cmd), null, 2);
+                  } catch (e) {
+                    return status.raw_cmd;
+                  }
+                })()
+              ) : (
+                <span className="text-slate-500 italic">Ningún comando enviado aún...</span>
+              )}
+            </pre>
+          </div>
+
+          {/* State Console */}
+          <div>
+            <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Consola de Estado ({status.settings?.relay_state_topic || 'rele/state'})
+            </span>
+            <pre className="bg-slate-950 text-emerald-300 p-3.5 rounded-xl text-[10px] font-mono overflow-x-auto h-40 border border-slate-900 shadow-inner">
+              {status.raw_state ? (
+                (() => {
+                  try {
+                    return JSON.stringify(JSON.parse(status.raw_state), null, 2);
+                  } catch (e) {
+                    return status.raw_state;
+                  }
+                })()
+              ) : (
+                <span className="text-slate-500 italic">Esperando actualización de estado...</span>
+              )}
+            </pre>
+          </div>
+        </div>
       </div>
 
       {/* Collapsible Config Section */}
