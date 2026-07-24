@@ -228,7 +228,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
         c.JSON(http.StatusOK, gin.H{"message": "Command sent successfully"})
     })
 
-    api.PUT("/automation/settings", func(c *gin.Context) {
+    api.POST("/automation/settings", func(c *gin.Context) {
         var req models.AutomationSetting
         if err := c.ShouldBindJSON(&req); err != nil {
             c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

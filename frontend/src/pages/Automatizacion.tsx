@@ -187,7 +187,7 @@ export default function Automatizacion() {
     setLoading(true);
     setSuccessMsg(null);
     fetch('/api/automation/settings', {
-      method: 'PUT',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings),
     })
@@ -220,7 +220,7 @@ export default function Automatizacion() {
     };
 
     fetch('/api/automation/settings', {
-      method: 'PUT',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedSettings),
     })
@@ -252,7 +252,7 @@ export default function Automatizacion() {
     };
 
     fetch('/api/automation/settings', {
-      method: 'PUT',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updatedSettings),
     })
@@ -719,7 +719,7 @@ export default function Automatizacion() {
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
           Último mensaje completo recibido desde el broker MQTT para depuración y monitoreo de claves.
         </p>
-        <pre className="bg-slate-955 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-48 border border-slate-800 dark:border-slate-900 shadow-inner">
+        <pre className="bg-slate-950 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-48 border border-slate-800 dark:border-slate-900 shadow-inner">
           {status.raw_json ? (
             (() => {
               try {
@@ -738,7 +738,7 @@ export default function Automatizacion() {
       <div ref={settingsSectionRef} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden transition-all duration-200">
         <button
           onClick={() => setShowSettings(!showSettings)}
-          className="w-full p-6 flex justify-between items-center text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+          className="w-full p-6 flex justify-between items-center text-slate-800 dark:text-slate-100 hover:bg-slate-55 dark:hover:bg-slate-700 transition-colors"
         >
           <div className="flex items-center gap-2.5 text-left">
             <Settings size={22} className="text-indigo-500" />
@@ -770,12 +770,12 @@ export default function Automatizacion() {
                     value={settings.broker}
                     onChange={(e) => setSettings({ ...settings, broker: e.target.value })}
                     required
-                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-350 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-355 mb-1.5">
                     Tópico de Telemetría (Subscribirse para datos)
                   </label>
                   <input
@@ -783,13 +783,13 @@ export default function Automatizacion() {
                     value={settings.telemetry_topic}
                     onChange={(e) => setSettings({ ...settings, telemetry_topic: e.target.value })}
                     required
-                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-350 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-355 mb-1.5">
                       Tópico Comandos (Cmd)
                     </label>
                     <input
@@ -797,11 +797,11 @@ export default function Automatizacion() {
                       value={settings.relay_cmd_topic}
                       onChange={(e) => setSettings({ ...settings, relay_cmd_topic: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-350 mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-355 mb-1.5">
                       Tópico Estado Rele
                     </label>
                     <input
@@ -809,7 +809,7 @@ export default function Automatizacion() {
                       value={settings.relay_state_topic}
                       onChange={(e) => setSettings({ ...settings, relay_state_topic: e.target.value })}
                       required
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                     />
                   </div>
                 </div>
@@ -831,7 +831,7 @@ export default function Automatizacion() {
                       value={settings.key_porcentaje}
                       onChange={(e) => setSettings({ ...settings, key_porcentaje: e.target.value })}
                       required
-                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -843,7 +843,7 @@ export default function Automatizacion() {
                       value={settings.key_nivel}
                       onChange={(e) => setSettings({ ...settings, key_nivel: e.target.value })}
                       required
-                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -855,7 +855,7 @@ export default function Automatizacion() {
                       value={settings.key_distancia}
                       onChange={(e) => setSettings({ ...settings, key_distancia: e.target.value })}
                       required
-                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -870,7 +870,7 @@ export default function Automatizacion() {
                       value={settings.key_caudal_entrada}
                       onChange={(e) => setSettings({ ...settings, key_caudal_entrada: e.target.value })}
                       required
-                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -882,7 +882,7 @@ export default function Automatizacion() {
                       value={settings.key_caudal_salida}
                       onChange={(e) => setSettings({ ...settings, key_caudal_salida: e.target.value })}
                       required
-                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                   <div>
@@ -894,7 +894,7 @@ export default function Automatizacion() {
                       value={settings.key_balance}
                       onChange={(e) => setSettings({ ...settings, key_balance: e.target.value })}
                       required
-                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     />
                   </div>
                 </div>
@@ -909,7 +909,7 @@ export default function Automatizacion() {
                       value={settings.key_lm}
                       onChange={(e) => setSettings({ ...settings, key_lm: e.target.value })}
                       required
-                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
                     />
                   </div>
                   <div>
@@ -921,7 +921,7 @@ export default function Automatizacion() {
                       value={settings.key_lm2}
                       onChange={(e) => setSettings({ ...settings, key_lm2: e.target.value })}
                       required
-                      className="w-full border border-slate-355 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-155 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-855 text-slate-900 dark:text-slate-100 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono"
                     />
                   </div>
                 </div>
