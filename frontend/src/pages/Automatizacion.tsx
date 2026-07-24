@@ -710,14 +710,45 @@ export default function Automatizacion() {
 
       </div>
 
-      {/* Raw JSON telemetry payload */}
+      {/* Raw JSON telemetry payload & Topics Monitoring */}
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200">
-        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-2">
+        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-4">
           <HardDrive size={18} className="text-indigo-500" />
-          Trama JSON Recibida en Tiempo Real (Tópico: {status.settings?.telemetry_topic || 'np1'})
+          Monitoreo de Tópicos MQTT y Datos en Tiempo Real
         </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-          Último mensaje completo recibido desde el broker MQTT para depuración y monitoreo de claves.
+
+        {/* Topics grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-5">
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/85">
+            <span className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Tópico Telemetría (Datos)
+            </span>
+            <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 block mt-1 truncate" title={status.settings?.telemetry_topic || 'nP1'}>
+              {status.settings?.telemetry_topic || 'nP1'}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/85">
+            <span className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Tópico Comandos (Relé)
+            </span>
+            <span className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400 block mt-1 truncate" title={status.settings?.relay_cmd_topic || 'nivelPrueba/cmd'}>
+              {status.settings?.relay_cmd_topic || 'nivelPrueba/cmd'}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/85">
+            <span className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+              Tópico Estado (Relé)
+            </span>
+            <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 block mt-1 truncate" title={status.settings?.relay_state_topic || 'rele/state'}>
+              {status.settings?.relay_state_topic || 'rele/state'}
+            </span>
+          </div>
+        </div>
+
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          Último mensaje JSON completo recibido desde el broker en el tópico de telemetría:
         </p>
         <pre className="bg-slate-950 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto max-h-48 border border-slate-800 dark:border-slate-900 shadow-inner">
           {status.raw_json ? (
