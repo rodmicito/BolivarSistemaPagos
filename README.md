@@ -103,10 +103,31 @@ La lógica financiera se implementa en [pago_service.go](file:///d:/pagosBolivar
 
 ---
 
+## 🤖 Módulo de Automatización y Telemetría (IoT / MQTT)
+
+El sistema incluye una sección avanzada de control de hardware en tiempo real que se conecta a un broker MQTT para monitorear el nivel de agua en tanques y automatizar el encendido/apagado de bombas de agua a través de un relé.
+
+### Características Principales:
+1.  **Conexión Broker MQTT:** Se conecta de forma segura a la IP y puerto configurados para intercambiar mensajes de telemetría y comandos en formato raw o JSON.
+2.  **Mapeo JSON Dinámico:** Permite configurar las claves de las variables recibidas en el payload JSON (ej. `porcentaje`, `nivel`, `caudal_entrada`, `pulsos`, etc.) para adaptarse a cualquier firmware cargado en placas ESP32/Arduino sin necesidad de modificar el código del backend.
+3.  **Temporizador Cíclico Activo:**
+    *   Ejecuta un bucle en segundo plano en Go para programar encendidos y apagados cíclicos del relé (ej. 15 min encendido, 45 min apagado).
+    *   Muestra un reloj de cuenta regresiva en tiempo real en la interfaz gráfica.
+4.  **Registro en Base de Datos SQLite:**
+    *   Permite habilitar un guardado periódico de telemetría e historial en la tabla `TelemetryLog` con un intervalo configurable en minutos.
+    *   Registra marcas de tiempo, valores numéricos de todos los caudales y distancias, estado del relé y comandos enviados para análisis históricos.
+5.  **Triple Consola de Monitoreo:** Un panel de depuración en la interfaz que muestra en paralelo el código JSON y tramas raw de:
+    *   **Tópico de Telemetría** (Datos recibidos de sensores).
+    *   **Tópico de Comandos** (Instrucciones enviadas al relé).
+    *   **Tópico de Estado** (Respuesta física de retorno del relé).
+
+---
+
 ## 🔌 Referencia de Endpoints de la API
 
 La API responde por defecto en `http://localhost:8080/api` ([routes.go](file:///d:/pagosBolivar/backend/internal/handlers/routes.go)):
 
+### Administración y Alquileres
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
 | **GET** | `/dashboard/stats` | Obtiene el total de habitaciones, habitaciones ocupadas/disponibles y contratos activos. |
@@ -119,6 +140,14 @@ La API responde por defecto en `http://localhost:8080/api` ([routes.go](file:///
 | **DELETE** | `/contratos/:id` | Elimina un contrato y todos sus pagos mensuales asociados (utilizando una transacción de base de datos). |
 | **GET** | `/pagos` | Obtiene el historial de todos los cobros mensuales registrados. |
 | **POST** | `/pagos/:id/pagar` | Realiza un pago rápido: marca el estado como `Pagado`, registrando el cobro total en la fecha actual. |
+
+### Automatización y IoT (MQTT)
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| **GET** | `/automation/status` | Obtiene el estado actual del relé, telemetría activa, configuraciones y tramas de consolas en tiempo real. |
+| **POST** | `/automation/connect` | Conecta o desconecta el cliente MQTT del backend al broker configurado. |
+| **POST** | `/automation/command` | Publica un comando rápido (`on`, `off`, `state`) en el tópico de comandos del relé. |
+| **POST** | `/automation/settings` | Guarda y aplica la configuración de tópicos MQTT, claves de mapeo JSON, temporizador cíclico y registro histórico en base de datos. |
 
 ---
 
