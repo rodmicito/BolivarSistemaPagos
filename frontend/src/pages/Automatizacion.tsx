@@ -31,6 +31,7 @@ interface AutomationSetting {
   time_off: number;
   db_log_active: boolean;
   db_log_interval: number;
+  auto_off_duration: number;
 }
 
 interface AutomationStatus {
@@ -43,6 +44,8 @@ interface AutomationStatus {
   raw_json: string;
   raw_cmd: string;
   raw_state: string;
+  auto_off_active: boolean;
+  auto_off_target: string;
 }
 
 export default function Automatizacion() {
@@ -57,6 +60,8 @@ export default function Automatizacion() {
     raw_json: '',
     raw_cmd: '',
     raw_state: '',
+    auto_off_active: false,
+    auto_off_target: '',
   });
   
   // Local edit state for settings
@@ -78,6 +83,7 @@ export default function Automatizacion() {
     time_off: 45,
     db_log_active: false,
     db_log_interval: 5,
+    auto_off_duration: 10,
   });
 
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -86,6 +92,7 @@ export default function Automatizacion() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>('');
+  const [autoOffTimeLeft, setAutoOffTimeLeft] = useState<string>('');
   
   const pollInterval = useRef<any>(null);
   const settingsSectionRef = useRef<HTMLDivElement | null>(null);
@@ -124,33 +131,50 @@ export default function Automatizacion() {
     };
   }, [settingsLoaded]);
 
-  // Live countdown timer calculation for scheduler
+  // Live countdown timer calculation for scheduler and auto-off timer
   useEffect(() => {
     const timer = setInterval(() => {
+      // 1. Scheduler countdown
       if (!status.settings?.scheduler_active || !status.relay_state_time || status.relay_state === 'Desconocido') {
         setTimeLeft('');
-        return;
+      } else {
+        const stateTime = new Date(status.relay_state_time).getTime();
+        const now = new Date().getTime();
+        const elapsedMs = now - stateTime;
+
+        const limitMin = status.relay_state === 'ON' ? status.settings.time_on : status.settings.time_off;
+        const limitMs = limitMin * 60 * 1000;
+        const remainingMs = limitMs - elapsedMs;
+
+        if (remainingMs <= 0) {
+          setTimeLeft('00:00 (Alternando...)');
+        } else {
+          const minutes = Math.floor(remainingMs / 1000 / 60);
+          const seconds = Math.floor((remainingMs / 1000) % 60);
+          setTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        }
       }
 
-      const stateTime = new Date(status.relay_state_time).getTime();
-      const now = new Date().getTime();
-      const elapsedMs = now - stateTime;
-
-      const limitMin = status.relay_state === 'ON' ? status.settings.time_on : status.settings.time_off;
-      const limitMs = limitMin * 60 * 1000;
-      const remainingMs = limitMs - elapsedMs;
-
-      if (remainingMs <= 0) {
-        setTimeLeft('00:00 (Alternando...)');
+      // 2. Auto-OFF timer countdown
+      if (!status.auto_off_active || !status.auto_off_target) {
+        setAutoOffTimeLeft('');
       } else {
-        const minutes = Math.floor(remainingMs / 1000 / 60);
-        const seconds = Math.floor((remainingMs / 1000) % 60);
-        setTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        const targetTime = new Date(status.auto_off_target).getTime();
+        const now = new Date().getTime();
+        const remainingMs = targetTime - now;
+
+        if (remainingMs <= 0) {
+          setAutoOffTimeLeft('00:00 (Apagando...)');
+        } else {
+          const minutes = Math.floor(remainingMs / 1000 / 60);
+          const seconds = Math.floor((remainingMs / 1000) % 60);
+          setAutoOffTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        }
       }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [status.relay_state_time, status.relay_state, status.settings]);
+  }, [status.relay_state_time, status.relay_state, status.settings, status.auto_off_active, status.auto_off_target]);
 
   const handleConnectToggle = () => {
     setLoading(true);
@@ -346,6 +370,59 @@ export default function Automatizacion() {
       .catch((err) => {
         console.error(err);
         setError('No se pudo guardar el intervalo de guardado en BD');
+        setLoading(false);
+      });
+  };
+
+  const handleStartAutoOffTimer = (minutes: number) => {
+    setLoading(true);
+    fetch('/api/automation/timer/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ minutes }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al iniciar temporizador de apagado');
+        return res.json();
+      })
+      .then((data: AutomationStatus) => {
+        setStatus(data);
+        if (data.settings) {
+          setSettings(data.settings);
+        }
+        setLoading(false);
+        setSuccessMsg(`Temporizador iniciado: apagado en ${minutes} minutos`);
+        setTimeout(() => setSuccessMsg(null), 3000);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError('No se pudo iniciar el temporizador de apagado');
+        setLoading(false);
+      });
+  };
+
+  const handleStopAutoOffTimer = () => {
+    setLoading(true);
+    fetch('/api/automation/timer/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al detener temporizador de apagado');
+        return res.json();
+      })
+      .then((data: AutomationStatus) => {
+        setStatus(data);
+        if (data.settings) {
+          setSettings(data.settings);
+        }
+        setLoading(false);
+        setSuccessMsg('Temporizador detenido y relé apagado');
+        setTimeout(() => setSuccessMsg(null), 3000);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError('No se pudo detener el temporizador de apagado');
         setLoading(false);
       });
   };
@@ -627,7 +704,73 @@ export default function Automatizacion() {
             </div>
           </div>
 
-          {/* Card 3: Database Logging Settings */}
+          {/* Card 3: One-shot Auto-Off Timer */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Clock size={18} className="text-amber-500" />
+                Auto-Apagado de Un Solo Uso
+              </h3>
+              {status.auto_off_active ? (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
+                  ACTIVO
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+                  INACTIVO
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+              Enciende el relé inmediatamente y lo apaga automáticamente una vez transcurra el tiempo seleccionado.
+            </p>
+
+            <div className="space-y-4">
+              {status.auto_off_active ? (
+                <div className="p-4 bg-amber-50/40 dark:bg-amber-950/10 border border-amber-100 dark:border-amber-900/35 rounded-xl text-center">
+                  <span className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                    Apagado automático en
+                  </span>
+                  <span className="text-2xl font-black text-amber-650 dark:text-amber-400 font-mono block mt-1">
+                    {autoOffTimeLeft || '00:00'}
+                  </span>
+                  <button
+                    onClick={handleStopAutoOffTimer}
+                    className="mt-3 w-full py-1.5 bg-red-55 hover:bg-red-100 dark:bg-red-950/30 dark:hover:bg-red-950/50 text-red-600 dark:text-red-400 font-bold text-xs rounded-lg transition-colors border border-red-100 dark:border-red-900/30"
+                  >
+                    Detener y Apagar
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                    Tiempo de Funcionamiento (minutos)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={settings.auto_off_duration}
+                      onChange={(e) => setSettings({ ...settings, auto_off_duration: parseInt(e.target.value) || 1 })}
+                      className="flex-1 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => handleStartAutoOffTimer(settings.auto_off_duration)}
+                      className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1"
+                      disabled={loading || status.relay_state === 'ON'}
+                      title={status.relay_state === 'ON' ? 'El relé ya está encendido' : ''}
+                    >
+                      <Power size={12} />
+                      Encender
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Card 4: Database Logging Settings */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 mt-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">

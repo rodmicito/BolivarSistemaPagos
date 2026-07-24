@@ -80,6 +80,7 @@ type AutomationSetting struct {
 	TimeOff          int    `json:"time_off"`
 	DbLogActive      bool   `json:"db_log_active"`
 	DbLogInterval    int    `json:"db_log_interval"`
+	AutoOffDuration  int    `json:"auto_off_duration"`
 }
 
 type TelemetryLog struct {

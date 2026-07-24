@@ -33,6 +33,8 @@ type AutomationStatus struct {
 	RawJSON        string                    `json:"raw_json"`
 	RawCmd         string                    `json:"raw_cmd"`
 	RawState       string                    `json:"raw_state"`
+	AutoOffActive  bool                      `json:"auto_off_active"`
+	AutoOffTarget  string                    `json:"auto_off_target"`
 }
 
 type AutomationService struct {
@@ -50,6 +52,8 @@ type AutomationService struct {
 	rawCmd         string
 	rawState       string
 	lastDbLogTime  time.Time
+	autoOffActive  bool
+	autoOffTarget  time.Time
 }
 
 var (
@@ -81,6 +85,7 @@ func GetAutomationService() *AutomationService {
 				TimeOff:          45,
 				DbLogActive:      false,
 				DbLogInterval:    5,
+				AutoOffDuration:  10,
 			},
 		}
 		// Start cyclic scheduler loop in background
@@ -127,6 +132,7 @@ func (s *AutomationService) LoadSettings() {
 			TimeOff:          45,
 			DbLogActive:      false,
 			DbLogInterval:    5,
+			AutoOffDuration:  10,
 		}
 		s.db.Create(&settings)
 	} else {
@@ -150,6 +156,10 @@ func (s *AutomationService) LoadSettings() {
 		}
 		if settings.DbLogInterval == 0 {
 			settings.DbLogInterval = 5
+			updated = true
+		}
+		if settings.AutoOffDuration == 0 {
+			settings.AutoOffDuration = 10
 			updated = true
 		}
 		if updated {
@@ -304,6 +314,11 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		stateTimeStr = s.relayStateTime.Format(time.RFC3339)
 	}
 
+	var autoOffTargetStr string
+	if !s.autoOffTarget.IsZero() {
+		autoOffTargetStr = s.autoOffTarget.Format(time.RFC3339)
+	}
+
 	return AutomationStatus{
 		Connected:      s.connected,
 		RelayState:     s.relayState,
@@ -314,6 +329,8 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		RawJSON:        s.rawJSON,
 		RawCmd:         s.rawCmd,
 		RawState:       s.rawState,
+		AutoOffActive:  s.autoOffActive,
+		AutoOffTarget:  autoOffTargetStr,
 	}
 }
 
@@ -390,7 +407,31 @@ func (s *AutomationService) runSchedulerLoop() {
 	for range ticker.C {
 		s.mu.Lock()
 		db := s.db
-		if db == nil || s.settings == nil || !s.settings.SchedulerActive {
+		if db == nil || s.settings == nil {
+			s.mu.Unlock()
+			continue
+		}
+
+		// Check one-shot auto-off timer expiration first (independent of scheduler)
+		autoOffActive := s.autoOffActive
+		autoOffTarget := s.autoOffTarget
+		if autoOffActive && !autoOffTarget.IsZero() {
+			if time.Now().After(autoOffTarget) {
+				log.Printf("[TIMER] One-shot Auto-OFF timer expired. Turning relay OFF.\n")
+				s.autoOffActive = false
+				s.autoOffTarget = time.Time{}
+				s.relayState = "OFF"
+				s.relayStateTime = time.Now()
+				s.mu.Unlock()
+
+				// Send command off outside lock
+				_ = s.SendCommand("off")
+				continue
+			}
+		}
+
+		// Now check scheduler active status
+		if !s.settings.SchedulerActive {
 			s.mu.Unlock()
 			continue
 		}
@@ -494,6 +535,32 @@ func (s *AutomationService) runDbLoggingLoop() {
 			}
 		}
 	}
+}
+
+func (s *AutomationService) StartAutoOffTimer(minutes int) error {
+	s.mu.Lock()
+	s.autoOffActive = true
+	s.autoOffTarget = time.Now().Add(time.Duration(minutes) * time.Minute)
+	
+	// Save the last configured auto-off duration to DB
+	if s.db != nil && s.settings != nil {
+		s.settings.AutoOffDuration = minutes
+		s.db.Model(s.settings).Update("auto_off_duration", minutes)
+	}
+	s.mu.Unlock()
+
+	// Turn ON the relay
+	return s.SendCommand("on")
+}
+
+func (s *AutomationService) StopAutoOffTimer() error {
+	s.mu.Lock()
+	s.autoOffActive = false
+	s.autoOffTarget = time.Time{}
+	s.mu.Unlock()
+
+	// Turn OFF the relay
+	return s.SendCommand("off")
 }
 
 func parseFloat(val string) float64 {

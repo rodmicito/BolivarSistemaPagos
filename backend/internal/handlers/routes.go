@@ -243,4 +243,36 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 
         c.JSON(http.StatusOK, service.GetStatus())
     })
+
+    api.POST("/automation/timer/start", func(c *gin.Context) {
+        var req struct {
+            Minutes int `json:"minutes"`
+        }
+        if err := c.ShouldBindJSON(&req); err != nil {
+            c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+            return
+        }
+
+        if req.Minutes <= 0 {
+            req.Minutes = 10
+        }
+
+        service := services.GetAutomationService()
+        if err := service.StartAutoOffTimer(req.Minutes); err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
+
+        c.JSON(http.StatusOK, service.GetStatus())
+    })
+
+    api.POST("/automation/timer/stop", func(c *gin.Context) {
+        service := services.GetAutomationService()
+        if err := service.StopAutoOffTimer(); err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
+
+        c.JSON(http.StatusOK, service.GetStatus())
+    })
 }
