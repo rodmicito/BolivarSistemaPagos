@@ -80,12 +80,13 @@ func GetAutomationService() *AutomationService {
 				KeyBalance:       "balance",
 				KeyLm:            "lm",
 				KeyLm2:           "lm2",
-				SchedulerActive:  false,
-				TimeOn:           15,
-				TimeOff:          45,
-				DbLogActive:      false,
-				DbLogInterval:    5,
-				AutoOffDuration:  10,
+				SchedulerActive:     false,
+				TimeOn:              15,
+				TimeOff:             45,
+				DbLogActive:         false,
+				DbLogInterval:       5,
+				AutoOffDuration:     10,
+				DbLogRetentionDays:  7,
 			},
 		}
 		// Start cyclic scheduler loop in background
@@ -136,9 +137,10 @@ func (s *AutomationService) LoadSettings() {
 			SchedulerActive:  false,
 			TimeOn:           15,
 			TimeOff:          45,
-			DbLogActive:      false,
-			DbLogInterval:    5,
-			AutoOffDuration:  10,
+			DbLogActive:         false,
+			DbLogInterval:       5,
+			AutoOffDuration:     10,
+			DbLogRetentionDays:  7,
 		}
 		s.db.Create(&settings)
 	} else {
@@ -166,6 +168,10 @@ func (s *AutomationService) LoadSettings() {
 		}
 		if settings.AutoOffDuration == 0 {
 			settings.AutoOffDuration = 10
+			updated = true
+		}
+		if settings.DbLogRetentionDays == 0 {
+			settings.DbLogRetentionDays = 7
 			updated = true
 		}
 		if updated {
@@ -537,7 +543,16 @@ func (s *AutomationService) runDbLoggingLoop() {
 				log.Printf("[DB LOGGING] Saved telemetry log at %v\n", logEntry.Timestamp)
 				s.mu.Lock()
 				s.lastDbLogTime = time.Now()
+				retentionDays := s.settings.DbLogRetentionDays
 				s.mu.Unlock()
+
+				// Rolling prune old logs
+				if retentionDays > 0 {
+					cutoff := time.Now().AddDate(0, 0, -retentionDays)
+					if err := db.Where("timestamp < ?", cutoff).Delete(&models.TelemetryLog{}).Error; err != nil {
+						log.Printf("[DB LOGGING] Error pruning old logs: %v\n", err)
+					}
+				}
 			}
 		}
 	}

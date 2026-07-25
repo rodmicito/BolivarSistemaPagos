@@ -32,6 +32,7 @@ interface AutomationSetting {
   db_log_active: boolean;
   db_log_interval: number;
   auto_off_duration: number;
+  db_log_retention_days: number;
 }
 
 interface AutomationStatus {
@@ -84,6 +85,7 @@ export default function Automatizacion() {
     db_log_active: false,
     db_log_interval: 5,
     auto_off_duration: 10,
+    db_log_retention_days: 7,
   });
 
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -365,12 +367,13 @@ export default function Automatizacion() {
       });
   };
 
-  const handleSaveDbInterval = (interval: number) => {
+  const handleSaveDbConfig = (interval: number, retentionDays: number) => {
     if (!status.settings) return;
     setLoading(true);
     const updatedSettings = {
       ...status.settings,
       db_log_interval: interval,
+      db_log_retention_days: retentionDays,
     };
 
     fetch('/api/automation/settings', {
@@ -379,7 +382,7 @@ export default function Automatizacion() {
       body: JSON.stringify(updatedSettings),
     })
       .then((res) => {
-        if (!res.ok) throw new Error('Error al guardar intervalo de BD');
+        if (!res.ok) throw new Error('Error al guardar configuración de BD');
         return res.json();
       })
       .then((data: AutomationStatus) => {
@@ -388,12 +391,12 @@ export default function Automatizacion() {
           setSettings(data.settings);
         }
         setLoading(false);
-        setSuccessMsg('Intervalo de guardado en BD guardado con éxito');
+        setSuccessMsg('Configuración de base de datos guardada con éxito');
         setTimeout(() => setSuccessMsg(null), 3000);
       })
       .catch((err) => {
         console.error(err);
-        setError('No se pudo guardar el intervalo de guardado en BD');
+        setError('No se pudo guardar la configuración de base de datos');
         setLoading(false);
       });
   };
@@ -836,24 +839,48 @@ export default function Automatizacion() {
                 <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
                   Intervalo de Guardado (minutos)
                 </label>
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    value={settings.db_log_interval}
-                    onChange={(e) => setSettings({ ...settings, db_log_interval: parseInt(e.target.value) || 1 })}
-                    className="flex-1 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    disabled={!status.settings?.db_log_active}
-                  />
-                  <button
-                    onClick={() => handleSaveDbInterval(settings.db_log_interval)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
-                    disabled={!status.settings?.db_log_active || loading}
-                  >
-                    Guardar
-                  </button>
+                <input
+                  type="number"
+                  min="1"
+                  value={settings.db_log_interval}
+                  onChange={(e) => setSettings({ ...settings, db_log_interval: parseInt(e.target.value) || 1 })}
+                  className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  disabled={!status.settings?.db_log_active}
+                />
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    Retención de Datos (días)
+                  </label>
+                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                    {settings.db_log_retention_days || 7} {settings.db_log_retention_days === 1 ? 'día' : 'días'}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="30"
+                  value={settings.db_log_retention_days || 7}
+                  onChange={(e) => setSettings({ ...settings, db_log_retention_days: parseInt(e.target.value) || 7 })}
+                  className="w-full h-1.5 bg-slate-250 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-50"
+                  disabled={!status.settings?.db_log_active}
+                />
+                <div className="flex justify-between text-[8px] text-slate-400 dark:text-slate-500 mt-1 select-none">
+                  <span>1 día</span>
+                  <span>15 días</span>
+                  <span>30 días</span>
                 </div>
               </div>
+
+              <button
+                onClick={() => handleSaveDbConfig(settings.db_log_interval, settings.db_log_retention_days || 7)}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-xs font-bold transition-colors shadow-sm disabled:opacity-50"
+                disabled={!status.settings?.db_log_active || loading}
+              >
+                Guardar Configuración
+              </button>
             </div>
 
             {/* Collapsible Recent Logs Visualizer */}
