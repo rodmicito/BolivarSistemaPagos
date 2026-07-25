@@ -275,4 +275,21 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 
         c.JSON(http.StatusOK, service.GetStatus())
     })
+
+    api.GET("/automation/logs", func(c *gin.Context) {
+        service := services.GetAutomationService()
+        db := service.GetDB()
+        if db == nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Database not initialized"})
+            return
+        }
+
+        var logs []models.TelemetryLog
+        if err := db.Order("timestamp desc").Limit(10).Find(&logs).Error; err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
+
+        c.JSON(http.StatusOK, logs)
+    })
 }

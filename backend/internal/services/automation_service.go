@@ -103,6 +103,12 @@ func (s *AutomationService) SetDB(db *gorm.DB) {
 	s.LoadSettings()
 }
 
+func (s *AutomationService) GetDB() *gorm.DB {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.db
+}
+
 func (s *AutomationService) LoadSettings() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

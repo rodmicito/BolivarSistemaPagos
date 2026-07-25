@@ -93,6 +93,8 @@ export default function Automatizacion() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [autoOffTimeLeft, setAutoOffTimeLeft] = useState<string>('');
+  const [dbLogs, setDbLogs] = useState<any[]>([]);
+  const [showDbLogs, setShowDbLogs] = useState(false);
   
   const pollInterval = useRef<any>(null);
   const settingsSectionRef = useRef<HTMLDivElement | null>(null);
@@ -120,6 +122,20 @@ export default function Automatizacion() {
       });
   };
 
+  const fetchDbLogs = () => {
+    fetch('/api/automation/logs')
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al obtener bitácora');
+        return res.json();
+      })
+      .then((data) => {
+        setDbLogs(data);
+      })
+      .catch((err) => {
+        console.error('Error fetching DB logs:', err);
+      });
+  };
+
   useEffect(() => {
     fetchStatus();
     pollInterval.current = setInterval(fetchStatus, 1000);
@@ -130,6 +146,14 @@ export default function Automatizacion() {
       }
     };
   }, [settingsLoaded]);
+
+  useEffect(() => {
+    if (showDbLogs) {
+      fetchDbLogs();
+      const interval = setInterval(fetchDbLogs, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [showDbLogs]);
 
   // Live countdown timer calculation for scheduler and auto-off timer
   useEffect(() => {
@@ -830,6 +854,66 @@ export default function Automatizacion() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Collapsible Recent Logs Visualizer */}
+            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+              <button
+                onClick={() => setShowDbLogs(!showDbLogs)}
+                className="w-full flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-indigo-600 transition-colors"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Database size={13} className="text-slate-400" />
+                  Ver Historial Reciente ({dbLogs.length})
+                </span>
+                {showDbLogs ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+
+              {showDbLogs && (
+                <div className="mt-3 overflow-x-auto max-h-56 scrollbar-thin rounded-lg border border-slate-100 dark:border-slate-800">
+                  {dbLogs.length === 0 ? (
+                    <span className="text-[10px] text-slate-500 italic block py-4 text-center">
+                      No hay registros guardados aún en la base de datos.
+                    </span>
+                  ) : (
+                    <table className="w-full text-[10px] text-left text-slate-500 dark:text-slate-400">
+                      <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 text-[9px] uppercase font-bold sticky top-0 border-b border-slate-100 dark:border-slate-800">
+                        <tr>
+                          <th className="px-2.5 py-1.5">Hora</th>
+                          <th className="px-2.5 py-1.5 text-center">Vol %</th>
+                          <th className="px-2.5 py-1.5 text-center">Nivel</th>
+                          <th className="px-2.5 py-1.5 text-center">Relé</th>
+                          <th className="px-2.5 py-1.5 text-center">Cmd</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900/30">
+                        {dbLogs.map((log: any) => {
+                          const timeStr = log.timestamp 
+                            ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+                            : 'N/A';
+                          return (
+                            <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/20">
+                              <td className="px-2.5 py-1.5 font-mono whitespace-nowrap">{timeStr}</td>
+                              <td className="px-2.5 py-1.5 text-center font-bold text-slate-750 dark:text-slate-200">{log.porcentaje}%</td>
+                              <td className="px-2.5 py-1.5 text-center">{log.nivel} cm</td>
+                              <td className="px-2.5 py-1.5 text-center">
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                                  log.relay_state === 'ON' 
+                                    ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' 
+                                    : 'bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400'
+                                }`}>
+                                  {log.relay_state || 'OFF'}
+                                </span>
+                              </td>
+                              <td className="px-2.5 py-1.5 text-center font-mono text-[9px] text-slate-400 dark:text-slate-500">{log.relay_cmd || '-'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
