@@ -71,6 +71,14 @@ const DEFAULT_SETTINGS: AutomationSetting = {
   db_log_retention_days: 7,
 };
 
+const parsePositiveInteger = (value: string) => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+};
+
 export default function Automatizacion() {
   const [broker, setBroker] = useState(DEFAULT_SETTINGS.broker);
   const [status, setStatus] = useState<AutomationStatus>({
@@ -89,6 +97,8 @@ export default function Automatizacion() {
   
   // Local edit state for settings
   const [settings, setSettings] = useState<AutomationSetting>(DEFAULT_SETTINGS);
+  const [timeOnInput, setTimeOnInput] = useState(String(DEFAULT_SETTINGS.time_on));
+  const [timeOffInput, setTimeOffInput] = useState(String(DEFAULT_SETTINGS.time_off));
 
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -143,6 +153,8 @@ export default function Automatizacion() {
           setBroker(data.settings.broker);
           if (!settingsLoaded) {
             setSettings(data.settings);
+            setTimeOnInput(String(data.settings.time_on));
+            setTimeOffInput(String(data.settings.time_off));
             setSettingsLoaded(true);
           }
         }
@@ -330,8 +342,17 @@ export default function Automatizacion() {
       });
   };
 
-  const handleSaveTimesOnly = (timeOn: number, timeOff: number) => {
+  const handleSaveTimesOnly = () => {
     if (!status.settings) return;
+    const timeOn = parsePositiveInteger(timeOnInput);
+    const timeOff = parsePositiveInteger(timeOffInput);
+
+    if (timeOn === null || timeOff === null) {
+      setError('Los intervalos deben ser números mayores a 0');
+      return;
+    }
+
+    setError(null);
     setLoading(true);
     const updatedSettings = {
       ...status.settings,
@@ -352,6 +373,8 @@ export default function Automatizacion() {
         setStatus(data);
         if (data.settings) {
           setSettings(data.settings);
+          setTimeOnInput(String(data.settings.time_on));
+          setTimeOffInput(String(data.settings.time_off));
         }
         setLoading(false);
         setSuccessMsg('Intervalos de tiempo guardados');
@@ -718,8 +741,8 @@ export default function Automatizacion() {
                   <input
                     type="number"
                     min="1"
-                    value={settings.time_on}
-                    onChange={(e) => setSettings({ ...settings, time_on: parseInt(e.target.value) || 1 })}
+                    value={timeOnInput}
+                    onChange={(e) => setTimeOnInput(e.target.value)}
                     className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
@@ -730,15 +753,15 @@ export default function Automatizacion() {
                   <input
                     type="number"
                     min="1"
-                    value={settings.time_off}
-                    onChange={(e) => setSettings({ ...settings, time_off: parseInt(e.target.value) || 1 })}
+                    value={timeOffInput}
+                    onChange={(e) => setTimeOffInput(e.target.value)}
                     className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <button
-                onClick={() => handleSaveTimesOnly(settings.time_on, settings.time_off)}
+                onClick={handleSaveTimesOnly}
                 className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-indigo-700 dark:text-indigo-300 font-bold text-xs rounded-lg transition-colors"
               >
                 Guardar Intervalos
