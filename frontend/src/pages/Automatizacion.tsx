@@ -1171,23 +1171,23 @@ export default function Automatizacion() {
       </div>
 
       {/* Gráfica de Serie de Tiempo de Telemetría */}
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 mb-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div>
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <Database size={18} className="text-indigo-500" />
-              Historial de Telemetría (Serie de Tiempo)
+      <div className="bg-white dark:bg-slate-800 p-3 sm:p-5 lg:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 mb-6 overflow-hidden">
+        <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <div className="min-w-0">
+            <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 leading-snug">
+              <Database size={17} className="text-indigo-500 flex-shrink-0" />
+              <span className="min-w-0">Historial de Telemetría</span>
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-snug">
               Visualiza gráficamente el comportamiento histórico de los sensores.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 w-full lg:w-auto">
             {/* Variable Selector */}
             <select
               value={chartVar}
               onChange={(e) => setChartVar(e.target.value)}
-              className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-semibold cursor-pointer"
+              className="min-w-0 w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[11px] sm:text-xs rounded-lg px-2 py-2 sm:px-2.5 sm:py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-semibold cursor-pointer"
             >
               <option value="porcentaje">Porcentaje de Agua</option>
               <option value="nivel">Nivel de Agua</option>
@@ -1203,7 +1203,7 @@ export default function Automatizacion() {
             <select
               value={chartLimit}
               onChange={(e) => setChartLimit(parseInt(e.target.value))}
-              className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-semibold cursor-pointer"
+              className="min-w-0 w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[11px] sm:text-xs rounded-lg px-2 py-2 sm:px-2.5 sm:py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-semibold cursor-pointer"
             >
               <option value={20}>Últimos 20</option>
               <option value={50}>Últimos 50</option>
@@ -1214,7 +1214,7 @@ export default function Automatizacion() {
             {/* Refresh Button */}
             <button
               onClick={fetchChartData}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg transition-colors"
+              className="h-9 w-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg transition-colors"
               title="Actualizar datos"
             >
               <RefreshCw size={15} />
@@ -1223,7 +1223,7 @@ export default function Automatizacion() {
         </div>
 
         {/* SVG Time Series Rendering */}
-        <div className="relative w-full h-72 select-none bg-slate-50/50 dark:bg-slate-900/30 rounded-xl p-2 border border-slate-100 dark:border-slate-800/80">
+        <div className="relative w-full h-44 sm:h-60 lg:h-72 select-none bg-slate-50/50 dark:bg-slate-900/30 rounded-xl p-1 sm:p-2 border border-slate-100 dark:border-slate-800/80 overflow-hidden">
           {chartData.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center flex-col text-slate-400 dark:text-slate-500 gap-2">
               <Database size={24} className="animate-pulse" />
@@ -1233,12 +1233,12 @@ export default function Automatizacion() {
               </span>
             </div>
           ) : (() => {
-            const width = 800;
-            const height = 280;
-            const paddingLeft = 50;
-            const paddingRight = 20;
-            const paddingTop = 20;
-            const paddingBottom = 40;
+            const width = 420;
+            const height = 210;
+            const paddingLeft = 32;
+            const paddingRight = 12;
+            const paddingTop = 14;
+            const paddingBottom = 28;
             const chartW = width - paddingLeft - paddingRight;
             const chartH = height - paddingTop - paddingBottom;
 
@@ -1268,7 +1268,8 @@ export default function Automatizacion() {
             };
 
             const points = chartData.map((d, i) => {
-              const x = paddingLeft + (i / (chartData.length - 1)) * chartW;
+              const xRatio = chartData.length <= 1 ? 0.5 : i / (chartData.length - 1);
+              const x = paddingLeft + xRatio * chartW;
               const y = yScale(d[chartVar] || 0);
               return { x, y, data: d };
             });
@@ -1277,19 +1278,21 @@ export default function Automatizacion() {
             const areaD = `${pathD} L ${points[points.length - 1].x} ${paddingTop + chartH} L ${points[0].x} ${paddingTop + chartH} Z`;
 
             // Grid lines y ticks
-            const gridTicks = 4;
+            const gridTicks = 3;
             const gridLines = Array.from({ length: gridTicks }).map((_, i) => {
               const val = yMin + (i / (gridTicks - 1)) * (yMax - yMin);
               const y = yScale(val);
               return { y, label: val.toFixed(1) };
             });
 
-            // X-axis timestamps (display 5 ticks max)
-            const xTicksCount = Math.min(5, chartData.length);
+            // X-axis timestamps (display 4 ticks max)
+            const xTicksCount = Math.min(4, chartData.length);
             const xTicks = Array.from({ length: xTicksCount }).map((_, i) => {
-              const dataIndex = Math.round((i / (xTicksCount - 1)) * (chartData.length - 1));
+              const tickRatio = xTicksCount <= 1 ? 0 : i / (xTicksCount - 1);
+              const dataIndex = Math.round(tickRatio * (chartData.length - 1));
               const d = chartData[dataIndex];
-              const x = paddingLeft + (dataIndex / (chartData.length - 1)) * chartW;
+              const xRatio = chartData.length <= 1 ? 0.5 : dataIndex / (chartData.length - 1);
+              const x = paddingLeft + xRatio * chartW;
               const timeStr = d?.timestamp
                 ? new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 : '';
@@ -1427,7 +1430,7 @@ export default function Automatizacion() {
                 {/* Hover Tooltip Overlay */}
                 {hoveredIndex !== null && hoveredPoint && points[hoveredIndex] && (
                   <div
-                    className="absolute bg-slate-900/95 dark:bg-slate-950/95 text-white p-3 rounded-xl border border-slate-800 shadow-2xl backdrop-blur-sm pointer-events-none transition-all duration-75 flex flex-col gap-1 z-[9999]"
+                    className="absolute max-w-[180px] bg-slate-900/95 dark:bg-slate-950/95 text-white p-2 sm:p-3 rounded-xl border border-slate-800 shadow-2xl backdrop-blur-sm pointer-events-none transition-all duration-75 flex flex-col gap-1 z-[9999]"
                     style={{
                       left: `${(points[hoveredIndex].x / width) * 100}%`,
                       top: `${(points[hoveredIndex].y / height) * 100 - 30}%`,
