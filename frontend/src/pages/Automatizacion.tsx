@@ -97,9 +97,37 @@ export default function Automatizacion() {
   const [autoOffTimeLeft, setAutoOffTimeLeft] = useState<string>('');
   const [dbLogs, setDbLogs] = useState<any[]>([]);
   const [showDbLogs, setShowDbLogs] = useState(false);
-  
   const pollInterval = useRef<any>(null);
   const settingsSectionRef = useRef<HTMLDivElement | null>(null);
+
+  // Time Series Chart state
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [chartVar, setChartVar] = useState<string>('porcentaje');
+  const [chartLimit, setChartLimit] = useState<number>(50);
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
+
+  const fetchChartData = () => {
+    fetch(`/api/automation/logs?limit=${chartLimit}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Error al obtener datos de gráfica');
+        return res.json();
+      })
+      .then((data) => {
+        // Reverse to get chronological order (oldest to newest)
+        setChartData([...data].reverse());
+      })
+      .catch((err) => {
+        console.error('Error fetching chart data:', err);
+      });
+  };
+
+  useEffect(() => {
+    fetchChartData();
+    // Poll every 10 seconds if db logs are active to keep the chart live
+    const interval = setInterval(fetchChartData, 10000);
+    return () => clearInterval(interval);
+  }, [chartLimit, status.settings?.db_log_active]);
 
   const fetchStatus = () => {
     fetch('/api/automation/status')
@@ -714,18 +742,34 @@ export default function Automatizacion() {
                 Guardar Intervalos
               </button>
 
-              {/* Countdown ticker display */}
-              {status.settings?.scheduler_active && timeLeft && (
+              {/* Countdown ticker display and status indicator */}
+              {status.settings?.scheduler_active && (
                 <div className="mt-2 p-3 bg-indigo-50/40 dark:bg-indigo-950/10 border border-indigo-100 dark:border-indigo-900/35 rounded-xl text-center">
-                  <span className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-                    Cambio de estado en
-                  </span>
-                  <span className="text-xl font-black text-indigo-650 dark:text-indigo-400 font-mono block mt-1">
-                    {timeLeft}
-                  </span>
-                  <span className="block text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
-                    Siguiente: {status.relay_state === 'ON' ? 'APAGADO' : 'ENCENDIDO'}
-                  </span>
+                  <div className="flex justify-between items-center mb-2 pb-1.5 border-b border-indigo-100/40 dark:border-indigo-900/40">
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                      Fase del Ciclo:
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${
+                      status.relay_state?.toUpperCase() === 'ON'
+                        ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                    }`}>
+                      {status.relay_state?.toUpperCase() === 'ON' ? 'ENCENDIDO' : 'APAGADO'}
+                    </span>
+                  </div>
+                  {timeLeft && (
+                    <>
+                      <span className="block text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                        Cambio de estado en
+                      </span>
+                      <span className="text-xl font-black text-indigo-650 dark:text-indigo-400 font-mono block mt-1">
+                        {timeLeft}
+                      </span>
+                      <span className="block text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
+                        Siguiente: {status.relay_state?.toUpperCase() === 'ON' ? 'APAGADO' : 'ENCENDIDO'}
+                      </span>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1099,6 +1143,294 @@ export default function Automatizacion() {
           </div>
         </div>
 
+      </div>
+
+      {/* Gráfica de Serie de Tiempo de Telemetría */}
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div>
+            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <Database size={18} className="text-indigo-500" />
+              Historial de Telemetría (Serie de Tiempo)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Visualiza gráficamente el comportamiento histórico de los sensores.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            {/* Variable Selector */}
+            <select
+              value={chartVar}
+              onChange={(e) => setChartVar(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-semibold cursor-pointer"
+            >
+              <option value="porcentaje">Porcentaje de Agua</option>
+              <option value="nivel">Nivel de Agua</option>
+              <option value="distancia">Distancia al Sensor</option>
+              <option value="caudal_entrada">Caudal Entrada</option>
+              <option value="caudal_salida">Caudal Salida</option>
+              <option value="balance">Balance de Flujo</option>
+              <option value="lm">Pulsos Entrada (lm)</option>
+              <option value="lm2">Pulsos Salida (lm2)</option>
+            </select>
+
+            {/* Limit Selector */}
+            <select
+              value={chartLimit}
+              onChange={(e) => setChartLimit(parseInt(e.target.value))}
+              className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none font-semibold cursor-pointer"
+            >
+              <option value={20}>Últimos 20</option>
+              <option value={50}>Últimos 50</option>
+              <option value={100}>Últimos 100</option>
+              <option value={200}>Últimos 200</option>
+            </select>
+
+            {/* Refresh Button */}
+            <button
+              onClick={fetchChartData}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-lg transition-colors"
+              title="Actualizar datos"
+            >
+              <RefreshCw size={15} />
+            </button>
+          </div>
+        </div>
+
+        {/* SVG Time Series Rendering */}
+        <div className="relative w-full h-72 select-none bg-slate-50/50 dark:bg-slate-900/30 rounded-xl p-2 border border-slate-100 dark:border-slate-800/80">
+          {chartData.length === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center flex-col text-slate-400 dark:text-slate-500 gap-2">
+              <Database size={24} className="animate-pulse" />
+              <span className="text-xs font-semibold">Cargando datos históricos...</span>
+              <span className="text-[10px] text-slate-400 italic">
+                Asegúrate de tener el "Registro en Base de Datos" activado.
+              </span>
+            </div>
+          ) : (() => {
+            const width = 800;
+            const height = 280;
+            const paddingLeft = 50;
+            const paddingRight = 20;
+            const paddingTop = 20;
+            const paddingBottom = 40;
+            const chartW = width - paddingLeft - paddingRight;
+            const chartH = height - paddingTop - paddingBottom;
+
+            const varConfigs: Record<string, { label: string; unit: string; color: string; gradient: string[] }> = {
+              porcentaje: { label: 'Porcentaje de Agua', unit: '%', color: '#10b981', gradient: ['#10b981', '#059669'] },
+              nivel: { label: 'Nivel de Agua', unit: ' cm', color: '#3b82f6', gradient: ['#3b82f6', '#2563eb'] },
+              distancia: { label: 'Distancia al Sensor', unit: ' cm', color: '#f97316', gradient: ['#f97316', '#ea580c'] },
+              caudal_entrada: { label: 'Caudal de Entrada', unit: ' L/min', color: '#6366f1', gradient: ['#6366f1', '#4f46e5'] },
+              caudal_salida: { label: 'Caudal de Salida', unit: ' L/min', color: '#f43f5e', gradient: ['#f43f5e', '#e11d48'] },
+              balance: { label: 'Balance de Flujo', unit: ' L/min', color: '#06b6d4', gradient: ['#06b6d4', '#0891b2'] },
+              lm: { label: 'Pulsos Entrada (lm)', unit: '', color: '#8b5cf6', gradient: ['#8b5cf6', '#7c3aed'] },
+              lm2: { label: 'Pulsos Salida (lm2)', unit: '', color: '#f59e0b', gradient: ['#f59e0b', '#d97706'] },
+            };
+            const config = varConfigs[chartVar] || varConfigs.porcentaje;
+
+            const values = chartData.map((d) => d[chartVar] || 0);
+            const rawMin = Math.min(...values, 0);
+            const rawMax = Math.max(...values, 10);
+            const r = rawMax - rawMin;
+            const yMin = Math.max(0, rawMin - r * 0.1);
+            const yMax = rawMax + r * 0.1;
+
+            const yScale = (val: number) => {
+              const denom = yMax - yMin;
+              if (denom === 0) return paddingTop + chartH / 2;
+              return paddingTop + chartH - ((val - yMin) / denom) * chartH;
+            };
+
+            const points = chartData.map((d, i) => {
+              const x = paddingLeft + (i / (chartData.length - 1)) * chartW;
+              const y = yScale(d[chartVar] || 0);
+              return { x, y, data: d };
+            });
+
+            const pathD = `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+            const areaD = `${pathD} L ${points[points.length - 1].x} ${paddingTop + chartH} L ${points[0].x} ${paddingTop + chartH} Z`;
+
+            // Grid lines y ticks
+            const gridTicks = 4;
+            const gridLines = Array.from({ length: gridTicks }).map((_, i) => {
+              const val = yMin + (i / (gridTicks - 1)) * (yMax - yMin);
+              const y = yScale(val);
+              return { y, label: val.toFixed(1) };
+            });
+
+            // X-axis timestamps (display 5 ticks max)
+            const xTicksCount = Math.min(5, chartData.length);
+            const xTicks = Array.from({ length: xTicksCount }).map((_, i) => {
+              const dataIndex = Math.round((i / (xTicksCount - 1)) * (chartData.length - 1));
+              const d = chartData[dataIndex];
+              const x = paddingLeft + (dataIndex / (chartData.length - 1)) * chartW;
+              const timeStr = d?.timestamp
+                ? new Date(d.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : '';
+              return { x, label: timeStr };
+            });
+
+            const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clientX = e.clientX - rect.left;
+              const relativeX = (clientX - paddingLeft) / chartW;
+              let idx = Math.round(relativeX * (chartData.length - 1));
+              idx = Math.max(0, Math.min(chartData.length - 1, idx));
+              setHoveredIndex(idx);
+              setHoveredPoint(chartData[idx]);
+            };
+
+            const handleMouseLeave = () => {
+              setHoveredIndex(null);
+              setHoveredPoint(null);
+            };
+
+            return (
+              <>
+                <svg
+                  viewBox={`0 0 ${width} ${height}`}
+                  className="w-full h-full"
+                  onMouseMove={handleMouseMove}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  <defs>
+                    <linearGradient id={`chart-grad-${chartVar}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={config.color} stopOpacity="0.35" />
+                      <stop offset="100%" stopColor={config.color} stopOpacity="0.00" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal grid lines */}
+                  {gridLines.map((line, i) => (
+                    <g key={i} className="opacity-40 dark:opacity-20">
+                      <line
+                        x1={paddingLeft}
+                        y1={line.y}
+                        x2={width - paddingRight}
+                        y2={line.y}
+                        stroke="#94a3b8"
+                        strokeDasharray="4 4"
+                        strokeWidth="0.8"
+                      />
+                      <text
+                        x={paddingLeft - 10}
+                        y={line.y + 3}
+                        textAnchor="end"
+                        className="text-[9px] font-bold fill-slate-400 dark:fill-slate-500 font-mono"
+                      >
+                        {line.label}
+                      </text>
+                    </g>
+                  ))}
+
+                  {/* Vertical grid lines */}
+                  {xTicks.map((tick, i) => (
+                    <g key={i} className="opacity-30 dark:opacity-10">
+                      <line
+                        x1={tick.x}
+                        y1={paddingTop}
+                        x2={tick.x}
+                        y2={paddingTop + chartH}
+                        stroke="#94a3b8"
+                        strokeDasharray="4 4"
+                        strokeWidth="0.8"
+                      />
+                    </g>
+                  ))}
+
+                  {/* X Axis Time Labels */}
+                  {xTicks.map((tick, i) => (
+                    <text
+                      key={i}
+                      x={tick.x}
+                      y={paddingTop + chartH + 18}
+                      textAnchor="middle"
+                      className="text-[9px] font-bold fill-slate-400 dark:fill-slate-500 font-mono"
+                    >
+                      {tick.label}
+                    </text>
+                  ))}
+
+                  {/* Area path */}
+                  <path
+                    d={areaD}
+                    fill={`url(#chart-grad-${chartVar})`}
+                  />
+
+                  {/* Line path */}
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke={config.color}
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Hover vertical line & marker */}
+                  {hoveredIndex !== null && points[hoveredIndex] && (
+                    <g>
+                      <line
+                        x1={points[hoveredIndex].x}
+                        y1={paddingTop}
+                        x2={points[hoveredIndex].x}
+                        y2={paddingTop + chartH}
+                        stroke={config.color}
+                        strokeOpacity="0.5"
+                        strokeWidth="1.2"
+                      />
+                      <circle
+                        cx={points[hoveredIndex].x}
+                        cy={points[hoveredIndex].y}
+                        r="6"
+                        fill={config.color}
+                        className="animate-ping opacity-70"
+                      />
+                      <circle
+                        cx={points[hoveredIndex].x}
+                        cy={points[hoveredIndex].y}
+                        r="5"
+                        fill={config.color}
+                        stroke="#ffffff"
+                        strokeWidth="2"
+                      />
+                    </g>
+                  )}
+                </svg>
+
+                {/* Hover Tooltip Overlay */}
+                {hoveredIndex !== null && hoveredPoint && points[hoveredIndex] && (
+                  <div
+                    className="absolute bg-slate-900/95 dark:bg-slate-950/95 text-white p-3 rounded-xl border border-slate-800 shadow-2xl backdrop-blur-sm pointer-events-none transition-all duration-75 flex flex-col gap-1 z-[9999]"
+                    style={{
+                      left: `${(points[hoveredIndex].x / width) * 100}%`,
+                      top: `${(points[hoveredIndex].y / height) * 100 - 30}%`,
+                      transform: 'translate(-50%, -100%)',
+                    }}
+                  >
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wide">
+                      {hoveredPoint.timestamp
+                        ? new Date(hoveredPoint.timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' })
+                        : 'Hora desconocida'}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: config.color }} />
+                      <span className="text-xs font-black font-mono">
+                        {(hoveredPoint[chartVar] || 0).toFixed(2)}{config.unit}
+                      </span>
+                    </div>
+                    {hoveredPoint.relay_state && (
+                      <span className="text-[8px] text-slate-400 mt-0.5">
+                        Relé: <strong className="text-slate-200">{hoveredPoint.relay_state}</strong>
+                      </span>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
       </div>
 
       {/* Raw JSON telemetry payload & Topics Monitoring */}

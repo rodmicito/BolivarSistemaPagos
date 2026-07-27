@@ -5,9 +5,14 @@
 # Backend (Go)
 backend/*.exe
 backend/pagos.db-journal
+backend/*.log
 
 # Frontend (React)
 frontend/node_modules/
 frontend/dist/
 frontend/dist-ssr/
 frontend/*.local
+frontend/*.log
+
+# Generated analysis output
+graphify-out/

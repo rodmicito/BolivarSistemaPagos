@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -68,25 +69,25 @@ func GetAutomationService() *AutomationService {
 			relayStateTime: time.Now(),
 			brokerURL:      "77.42.17.7:11884",
 			settings: &models.AutomationSetting{
-				Broker:           "77.42.17.7:11884",
-				RelayCmdTopic:    "nivelPrueba/cmd",
-				RelayStateTopic:  "rele/state",
-				TelemetryTopic:   "nP1",
-				KeyPorcentaje:    "porcentaje",
-				KeyNivel:         "nivel",
-				KeyDistancia:     "distancia",
-				KeyCaudalEntrada: "caudal_entrada",
-				KeyCaudalSalida:  "caudal_salida",
-				KeyBalance:       "balance",
-				KeyLm:            "lm",
-				KeyLm2:           "lm2",
-				SchedulerActive:     false,
-				TimeOn:              15,
-				TimeOff:             45,
-				DbLogActive:         false,
-				DbLogInterval:       5,
-				AutoOffDuration:     10,
-				DbLogRetentionDays:  7,
+				Broker:             "77.42.17.7:11884",
+				RelayCmdTopic:      "nivelPrueba/cmd",
+				RelayStateTopic:    "rele/state",
+				TelemetryTopic:     "nP1",
+				KeyPorcentaje:      "porcentaje",
+				KeyNivel:           "nivel",
+				KeyDistancia:       "distancia",
+				KeyCaudalEntrada:   "caudal_entrada",
+				KeyCaudalSalida:    "caudal_salida",
+				KeyBalance:         "balance",
+				KeyLm:              "lm",
+				KeyLm2:             "lm2",
+				SchedulerActive:    false,
+				TimeOn:             15,
+				TimeOff:            45,
+				DbLogActive:        false,
+				DbLogInterval:      5,
+				AutoOffDuration:    10,
+				DbLogRetentionDays: 7,
 			},
 		}
 		// Start cyclic scheduler loop in background
@@ -122,25 +123,25 @@ func (s *AutomationService) LoadSettings() {
 	if err := s.db.First(&settings).Error; err != nil {
 		// Create default settings if not exists
 		settings = models.AutomationSetting{
-			Broker:           "77.42.17.7:11884",
-			RelayCmdTopic:    "nivelPrueba/cmd",
-			RelayStateTopic:  "rele/state",
-			TelemetryTopic:   "nP1",
-			KeyPorcentaje:    "porcentaje",
-			KeyNivel:         "nivel",
-			KeyDistancia:     "distancia",
-			KeyCaudalEntrada: "caudal_entrada",
-			KeyCaudalSalida:  "caudal_salida",
-			KeyBalance:       "balance",
-			KeyLm:            "lm",
-			KeyLm2:           "lm2",
-			SchedulerActive:  false,
-			TimeOn:           15,
-			TimeOff:          45,
-			DbLogActive:         false,
-			DbLogInterval:       5,
-			AutoOffDuration:     10,
-			DbLogRetentionDays:  7,
+			Broker:             "77.42.17.7:11884",
+			RelayCmdTopic:      "nivelPrueba/cmd",
+			RelayStateTopic:    "rele/state",
+			TelemetryTopic:     "nP1",
+			KeyPorcentaje:      "porcentaje",
+			KeyNivel:           "nivel",
+			KeyDistancia:       "distancia",
+			KeyCaudalEntrada:   "caudal_entrada",
+			KeyCaudalSalida:    "caudal_salida",
+			KeyBalance:         "balance",
+			KeyLm:              "lm",
+			KeyLm2:             "lm2",
+			SchedulerActive:    false,
+			TimeOn:             15,
+			TimeOff:            45,
+			DbLogActive:        false,
+			DbLogInterval:      5,
+			AutoOffDuration:    10,
+			DbLogRetentionDays: 7,
 		}
 		s.db.Create(&settings)
 	} else {
@@ -238,7 +239,7 @@ func (s *AutomationService) Start(broker string) {
 		if token := c.Subscribe(telemetryTopic, 1, s.handleSensorMessage); token.Wait() && token.Error() != nil {
 			log.Printf("[MQTT] Error subscribing to telemetry topic %s: %v\n", telemetryTopic, token.Error())
 		}
-		
+
 		// Subscribe to state topic
 		if token := c.Subscribe(stateTopic, 1, s.handleStateMessage); token.Wait() && token.Error() != nil {
 			log.Printf("[MQTT] Error subscribing to state topic %s: %v\n", stateTopic, token.Error())
@@ -395,14 +396,26 @@ func (s *AutomationService) handleStateMessage(client mqtt.Client, msg mqtt.Mess
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	newState := string(msg.Payload())
-	s.rawState = newState
-	if s.relayState != newState {
-		s.relayState = newState
+	rawPayload := strings.TrimSpace(string(msg.Payload()))
+	s.rawState = rawPayload
+
+	// Normalize payload to uppercase ON or OFF
+	upperPayload := strings.ToUpper(rawPayload)
+	var normalizedState string
+	if upperPayload == "ON" || upperPayload == "1" || upperPayload == "TRUE" {
+		normalizedState = "ON"
+	} else if upperPayload == "OFF" || upperPayload == "0" || upperPayload == "FALSE" {
+		normalizedState = "OFF"
+	} else {
+		normalizedState = upperPayload
+	}
+
+	if s.relayState != normalizedState {
+		s.relayState = normalizedState
 		s.relayStateTime = time.Now()
 	}
 	s.lastUpdated = time.Now()
-	log.Printf("[MQTT] Relay state updated to: %s\n", s.relayState)
+	log.Printf("[MQTT] Relay state updated to: %s (raw: %s)\n", s.relayState, rawPayload)
 }
 
 func (s *AutomationService) handleCmdMessage(client mqtt.Client, msg mqtt.Message) {
@@ -562,7 +575,7 @@ func (s *AutomationService) StartAutoOffTimer(minutes int) error {
 	s.mu.Lock()
 	s.autoOffActive = true
 	s.autoOffTarget = time.Now().Add(time.Duration(minutes) * time.Minute)
-	
+
 	// Save the last configured auto-off duration to DB
 	if s.db != nil && s.settings != nil {
 		s.settings.AutoOffDuration = minutes
