@@ -38,6 +38,10 @@ COPY backend/pagos.db ./pagos_default.db
 ENV PORT=8080
 ENV DB_PATH=/app/data/pagos.db
 ENV GIN_MODE=release
+ENV MQTT_BROKER=77.42.17.7:11884
+ENV MQTT_RELAY_CMD_TOPIC=nivelPrueba/cmd
+ENV MQTT_RELAY_STATE_TOPIC=rele/state
+ENV MQTT_TELEMETRY_TOPIC=nP1
 
 # Expose port
 EXPOSE 8080

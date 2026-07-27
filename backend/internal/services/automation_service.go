@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -39,22 +41,23 @@ type AutomationStatus struct {
 }
 
 type AutomationService struct {
-	mu             sync.RWMutex
-	db             *gorm.DB
-	client         mqtt.Client
-	connected      bool
-	relayState     string
-	relayStateTime time.Time
-	lastData       *ESP32Data
-	lastUpdated    time.Time
-	brokerURL      string
-	settings       *models.AutomationSetting
-	rawJSON        string
-	rawCmd         string
-	rawState       string
-	lastDbLogTime  time.Time
-	autoOffActive  bool
-	autoOffTarget  time.Time
+	mu              sync.RWMutex
+	db              *gorm.DB
+	client          mqtt.Client
+	connected       bool
+	relayState      string
+	relayStateTime  time.Time
+	lastData        *ESP32Data
+	lastUpdated     time.Time
+	brokerURL       string
+	settings        *models.AutomationSetting
+	rawJSON         string
+	rawCmd          string
+	rawState        string
+	lastDbLogTime   time.Time
+	autoOffActive   bool
+	autoOffTarget   time.Time
+	connectionError string
 }
 
 var (
@@ -64,31 +67,12 @@ var (
 
 func GetAutomationService() *AutomationService {
 	once.Do(func() {
+		defaultSettings := defaultAutomationSetting()
 		GlobalAutomationService = &AutomationService{
 			relayState:     "Desconocido",
 			relayStateTime: time.Now(),
-			brokerURL:      "77.42.17.7:11884",
-			settings: &models.AutomationSetting{
-				Broker:             "77.42.17.7:11884",
-				RelayCmdTopic:      "nivelPrueba/cmd",
-				RelayStateTopic:    "rele/state",
-				TelemetryTopic:     "nP1",
-				KeyPorcentaje:      "porcentaje",
-				KeyNivel:           "nivel",
-				KeyDistancia:       "distancia",
-				KeyCaudalEntrada:   "caudal_entrada",
-				KeyCaudalSalida:    "caudal_salida",
-				KeyBalance:         "balance",
-				KeyLm:              "lm",
-				KeyLm2:             "lm2",
-				SchedulerActive:    false,
-				TimeOn:             15,
-				TimeOff:            45,
-				DbLogActive:        false,
-				DbLogInterval:      5,
-				AutoOffDuration:    10,
-				DbLogRetentionDays: 7,
-			},
+			brokerURL:      defaultSettings.Broker,
+			settings:       &defaultSettings,
 		}
 		// Start cyclic scheduler loop in background
 		go GlobalAutomationService.runSchedulerLoop()
@@ -121,38 +105,22 @@ func (s *AutomationService) LoadSettings() {
 
 	var settings models.AutomationSetting
 	if err := s.db.First(&settings).Error; err != nil {
-		// Create default settings if not exists
-		settings = models.AutomationSetting{
-			Broker:             "77.42.17.7:11884",
-			RelayCmdTopic:      "nivelPrueba/cmd",
-			RelayStateTopic:    "rele/state",
-			TelemetryTopic:     "nP1",
-			KeyPorcentaje:      "porcentaje",
-			KeyNivel:           "nivel",
-			KeyDistancia:       "distancia",
-			KeyCaudalEntrada:   "caudal_entrada",
-			KeyCaudalSalida:    "caudal_salida",
-			KeyBalance:         "balance",
-			KeyLm:              "lm",
-			KeyLm2:             "lm2",
-			SchedulerActive:    false,
-			TimeOn:             15,
-			TimeOff:            45,
-			DbLogActive:        false,
-			DbLogInterval:      5,
-			AutoOffDuration:    10,
-			DbLogRetentionDays: 7,
-		}
+		settings = defaultAutomationSetting()
 		s.db.Create(&settings)
 	} else {
+		defaultSettings := defaultAutomationSetting()
 		// Auto-migrate old defaults on existing databases to the new targets
 		updated := false
+		if settings.Broker == "" {
+			settings.Broker = defaultSettings.Broker
+			updated = true
+		}
 		if settings.RelayCmdTopic == "rele/cmd" {
-			settings.RelayCmdTopic = "nivelPrueba/cmd"
+			settings.RelayCmdTopic = defaultSettings.RelayCmdTopic
 			updated = true
 		}
 		if settings.TelemetryTopic == "rele" {
-			settings.TelemetryTopic = "nP1"
+			settings.TelemetryTopic = defaultSettings.TelemetryTopic
 			updated = true
 		}
 		if settings.TimeOn == 0 {
@@ -217,12 +185,27 @@ func (s *AutomationService) Start(broker string) {
 		return
 	}
 
-	s.brokerURL = broker
-	opts := mqtt.NewClientOptions().AddBroker("tcp://" + broker)
-	opts.SetClientID("bolivar_host_backend")
+	if s.client != nil {
+		s.client.Disconnect(250)
+	}
+
+	brokerURL := normalizeBrokerURL(broker)
+	s.brokerURL = stripBrokerScheme(brokerURL)
+	opts := mqtt.NewClientOptions().AddBroker(brokerURL)
+	opts.SetClientID(mqttClientID("bolivar_host_backend"))
 	opts.SetKeepAlive(60 * time.Second)
 	opts.SetPingTimeout(10 * time.Second)
 	opts.SetAutoReconnect(true)
+	opts.SetConnectRetry(true)
+	opts.SetConnectRetryInterval(5 * time.Second)
+	opts.SetResumeSubs(true)
+	opts.SetConnectionLostHandler(func(c mqtt.Client, err error) {
+		log.Printf("[MQTT] Connection lost: %v\n", err)
+		s.mu.Lock()
+		s.connected = false
+		s.connectionError = err.Error()
+		s.mu.Unlock()
+	})
 
 	// Local pointers to settings topics for thread safety
 	telemetryTopic := s.settings.TelemetryTopic
@@ -230,9 +213,10 @@ func (s *AutomationService) Start(broker string) {
 	cmdTopic := s.settings.RelayCmdTopic
 
 	opts.OnConnect = func(c mqtt.Client) {
-		log.Printf("[MQTT] Connected to broker: %s\n", broker)
+		log.Printf("[MQTT] Connected to broker: %s\n", brokerURL)
 		s.mu.Lock()
 		s.connected = true
+		s.connectionError = ""
 		s.mu.Unlock()
 
 		// Subscribe to telemetry topic
@@ -254,17 +238,14 @@ func (s *AutomationService) Start(broker string) {
 		c.Publish(cmdTopic, 1, false, "state")
 	}
 
-	opts.OnConnectionLost = func(c mqtt.Client, err error) {
-		log.Printf("[MQTT] Connection lost: %v\n", err)
-		s.mu.Lock()
-		s.connected = false
-		s.mu.Unlock()
-	}
-
 	s.client = mqtt.NewClient(opts)
 	go func() {
 		if token := s.client.Connect(); token.Wait() && token.Error() != nil {
-			log.Printf("[MQTT] Error connecting to broker %s: %v\n", broker, token.Error())
+			log.Printf("[MQTT] Error connecting to broker %s: %v\n", brokerURL, token.Error())
+			s.mu.Lock()
+			s.connected = false
+			s.connectionError = token.Error().Error()
+			s.mu.Unlock()
 		}
 	}()
 }
@@ -296,8 +277,8 @@ func (s *AutomationService) SendCommand(cmd string) error {
 	s.mu.RUnlock()
 
 	if !connected || client == nil {
-		opts := mqtt.NewClientOptions().AddBroker("tcp://" + broker)
-		opts.SetClientID("bolivar_host_cmd_temp")
+		opts := mqtt.NewClientOptions().AddBroker(normalizeBrokerURL(broker))
+		opts.SetClientID(mqttClientID("bolivar_host_cmd_temp"))
 		c := mqtt.NewClient(opts)
 		if token := c.Connect(); token.Wait() && token.Error() != nil {
 			return fmt.Errorf("MQTT not connected and failed to establish temporary connection: %v", token.Error())
@@ -345,6 +326,70 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		AutoOffActive:  s.autoOffActive,
 		AutoOffTarget:  autoOffTargetStr,
 	}
+}
+
+func defaultAutomationSetting() models.AutomationSetting {
+	return models.AutomationSetting{
+		Broker:             envOrDefault("MQTT_BROKER", "77.42.17.7:11884"),
+		RelayCmdTopic:      envOrDefault("MQTT_RELAY_CMD_TOPIC", "nivelPrueba/cmd"),
+		RelayStateTopic:    envOrDefault("MQTT_RELAY_STATE_TOPIC", "rele/state"),
+		TelemetryTopic:     envOrDefault("MQTT_TELEMETRY_TOPIC", "nP1"),
+		KeyPorcentaje:      envOrDefault("MQTT_KEY_PORCENTAJE", "porcentaje"),
+		KeyNivel:           envOrDefault("MQTT_KEY_NIVEL", "nivel"),
+		KeyDistancia:       envOrDefault("MQTT_KEY_DISTANCIA", "distancia"),
+		KeyCaudalEntrada:   envOrDefault("MQTT_KEY_CAUDAL_ENTRADA", "caudal_entrada"),
+		KeyCaudalSalida:    envOrDefault("MQTT_KEY_CAUDAL_SALIDA", "caudal_salida"),
+		KeyBalance:         envOrDefault("MQTT_KEY_BALANCE", "balance"),
+		KeyLm:              envOrDefault("MQTT_KEY_LM", "lm"),
+		KeyLm2:             envOrDefault("MQTT_KEY_LM2", "lm2"),
+		SchedulerActive:    false,
+		TimeOn:             15,
+		TimeOff:            45,
+		DbLogActive:        false,
+		DbLogInterval:      5,
+		AutoOffDuration:    10,
+		DbLogRetentionDays: 7,
+	}
+}
+
+func envOrDefault(key string, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func normalizeBrokerURL(broker string) string {
+	broker = strings.TrimSpace(broker)
+	if broker == "" {
+		broker = defaultAutomationSetting().Broker
+	}
+	if strings.Contains(broker, "://") {
+		return broker
+	}
+	return "tcp://" + broker
+}
+
+func stripBrokerScheme(broker string) string {
+	parsed, err := url.Parse(broker)
+	if err != nil || parsed.Host == "" {
+		return strings.TrimPrefix(broker, "tcp://")
+	}
+	return parsed.Host
+}
+
+func mqttClientID(prefix string) string {
+	hostname, err := os.Hostname()
+	if err != nil || hostname == "" {
+		hostname = fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%s_%s", prefix, sanitizeMQTTClientID(hostname))
+}
+
+func sanitizeMQTTClientID(value string) string {
+	replacer := strings.NewReplacer(" ", "_", "/", "_", "\\", "_", ":", "_")
+	return replacer.Replace(value)
 }
 
 func getStringValue(m map[string]interface{}, key string) string {

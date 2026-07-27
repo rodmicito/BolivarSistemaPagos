@@ -49,8 +49,30 @@ interface AutomationStatus {
   auto_off_target: string;
 }
 
+const DEFAULT_SETTINGS: AutomationSetting = {
+  broker: '77.42.17.7:11884',
+  relay_cmd_topic: 'nivelPrueba/cmd',
+  relay_state_topic: 'rele/state',
+  telemetry_topic: 'nP1',
+  key_porcentaje: 'porcentaje',
+  key_nivel: 'nivel',
+  key_distancia: 'distancia',
+  key_caudal_entrada: 'caudal_entrada',
+  key_caudal_salida: 'caudal_salida',
+  key_balance: 'balance',
+  key_lm: 'lm',
+  key_lm2: 'lm2',
+  scheduler_active: false,
+  time_on: 15,
+  time_off: 45,
+  db_log_active: false,
+  db_log_interval: 5,
+  auto_off_duration: 10,
+  db_log_retention_days: 7,
+};
+
 export default function Automatizacion() {
-  const [broker, setBroker] = useState('77.42.17.7:11884');
+  const [broker, setBroker] = useState(DEFAULT_SETTINGS.broker);
   const [status, setStatus] = useState<AutomationStatus>({
     connected: false,
     relay_state: 'Desconocido',
@@ -66,27 +88,7 @@ export default function Automatizacion() {
   });
   
   // Local edit state for settings
-  const [settings, setSettings] = useState<AutomationSetting>({
-    broker: '77.42.17.7:11884',
-    relay_cmd_topic: 'rele/cmd',
-    relay_state_topic: 'rele/state',
-    telemetry_topic: 'rele',
-    key_porcentaje: 'porcentaje',
-    key_nivel: 'nivel',
-    key_distancia: 'distancia',
-    key_caudal_entrada: 'caudal_entrada',
-    key_caudal_salida: 'caudal_salida',
-    key_balance: 'balance',
-    key_lm: 'lm',
-    key_lm2: 'lm2',
-    scheduler_active: false,
-    time_on: 15,
-    time_off: 45,
-    db_log_active: false,
-    db_log_interval: 5,
-    auto_off_duration: 10,
-    db_log_retention_days: 7,
-  });
+  const [settings, setSettings] = useState<AutomationSetting>(DEFAULT_SETTINGS);
 
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -658,13 +660,13 @@ export default function Automatizacion() {
               <div className="flex justify-between">
                 <span>Tópico Cmd:</span>
                 <span className="font-mono bg-slate-100 dark:bg-slate-900 px-1 rounded truncate max-w-[150px]">
-                  {status.settings?.relay_cmd_topic || 'rele/cmd'}
+                  {status.settings?.relay_cmd_topic || DEFAULT_SETTINGS.relay_cmd_topic}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Tópico State:</span>
                 <span className="font-mono bg-slate-100 dark:bg-slate-900 px-1 rounded truncate max-w-[150px]">
-                  {status.settings?.relay_state_topic || 'rele/state'}
+                  {status.settings?.relay_state_topic || DEFAULT_SETTINGS.relay_state_topic}
                 </span>
               </div>
             </div>
@@ -1064,7 +1066,7 @@ export default function Automatizacion() {
               <div className="flex justify-between text-[9px] text-slate-400 dark:text-slate-500 border-t border-slate-50 dark:border-slate-800 pt-1.5">
                 <span>Tópico de Telemetría:</span>
                 <span className="font-mono bg-slate-100 dark:bg-slate-900 px-1 rounded truncate max-w-[160px]">
-                  {status.settings?.telemetry_topic || 'rele'}
+                  {status.settings?.telemetry_topic || DEFAULT_SETTINGS.telemetry_topic}
                 </span>
               </div>
             </div>

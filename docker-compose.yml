@@ -13,6 +13,10 @@ services:
       - PORT=8080
       - DB_PATH=/app/data/pagos.db
       - GIN_MODE=release
+      - MQTT_BROKER=77.42.17.7:11884
+      - MQTT_RELAY_CMD_TOPIC=nivelPrueba/cmd
+      - MQTT_RELAY_STATE_TOPIC=rele/state
+      - MQTT_TELEMETRY_TOPIC=nP1
     restart: unless-stopped
 
 volumes:

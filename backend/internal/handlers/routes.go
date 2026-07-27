@@ -202,7 +202,10 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		service := services.GetAutomationService()
 		if req.Connect {
 			if req.Broker == "" {
-				req.Broker = "77.42.17.7:11884"
+				status := service.GetStatus()
+				if status.Settings != nil {
+					req.Broker = status.Settings.Broker
+				}
 			}
 			service.Start(req.Broker)
 		} else {
