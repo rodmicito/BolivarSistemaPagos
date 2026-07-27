@@ -58,6 +58,11 @@ type AutomationService struct {
 	autoOffActive   bool
 	autoOffTarget   time.Time
 	connectionError string
+
+	schedulerTargetState    string
+	schedulerTargetSince    time.Time
+	lastSchedulerStateCheck time.Time
+	lastSchedulerCorrection time.Time
 }
 
 var (
@@ -155,6 +160,7 @@ func (s *AutomationService) UpdateSettings(newSettings models.AutomationSetting)
 	s.mu.RLock()
 	db := s.db
 	isConnected := s.connected
+	wasSchedulerActive := s.settings != nil && s.settings.SchedulerActive
 	s.mu.RUnlock()
 
 	if db == nil {
@@ -174,7 +180,41 @@ func (s *AutomationService) UpdateSettings(newSettings models.AutomationSetting)
 		s.Start(newSettings.Broker)
 	}
 
+	if newSettings.SchedulerActive && !wasSchedulerActive {
+		go s.startSchedulerCycle()
+	} else if !newSettings.SchedulerActive && wasSchedulerActive {
+		s.stopSchedulerCycle()
+	}
+
 	return nil
+}
+
+func (s *AutomationService) startSchedulerCycle() {
+	now := time.Now()
+	s.mu.Lock()
+	s.schedulerTargetState = "ON"
+	s.schedulerTargetSince = now
+	s.lastSchedulerStateCheck = time.Time{}
+	s.lastSchedulerCorrection = time.Time{}
+	s.relayState = "ON"
+	s.relayStateTime = now
+	s.mu.Unlock()
+
+	log.Println("[SCHEDULER] Starting cycle in ON phase.")
+	if err := s.SendCommand("on"); err != nil {
+		log.Printf("[SCHEDULER] Error starting ON phase: %v\n", err)
+		return
+	}
+	_ = s.SendCommand("state")
+}
+
+func (s *AutomationService) stopSchedulerCycle() {
+	s.mu.Lock()
+	s.schedulerTargetState = ""
+	s.schedulerTargetSince = time.Time{}
+	s.lastSchedulerStateCheck = time.Time{}
+	s.lastSchedulerCorrection = time.Time{}
+	s.mu.Unlock()
 }
 
 func (s *AutomationService) Start(broker string) {
@@ -475,6 +515,10 @@ func (s *AutomationService) handleCmdMessage(client mqtt.Client, msg mqtt.Messag
 func (s *AutomationService) runSchedulerLoop() {
 	ticker := time.NewTicker(5 * time.Second) // Check every 5 seconds for responsive schedules
 	for range ticker.C {
+		now := time.Now()
+		var commandToSend string
+		shouldRequestState := false
+
 		s.mu.Lock()
 		db := s.db
 		if db == nil || s.settings == nil {
@@ -486,12 +530,12 @@ func (s *AutomationService) runSchedulerLoop() {
 		autoOffActive := s.autoOffActive
 		autoOffTarget := s.autoOffTarget
 		if autoOffActive && !autoOffTarget.IsZero() {
-			if time.Now().After(autoOffTarget) {
+			if now.After(autoOffTarget) {
 				log.Printf("[TIMER] One-shot Auto-OFF timer expired. Turning relay OFF.\n")
 				s.autoOffActive = false
 				s.autoOffTarget = time.Time{}
 				s.relayState = "OFF"
-				s.relayStateTime = time.Now()
+				s.relayStateTime = now
 				s.mu.Unlock()
 
 				// Send command off outside lock
@@ -502,53 +546,80 @@ func (s *AutomationService) runSchedulerLoop() {
 
 		// Now check scheduler active status
 		if !s.settings.SchedulerActive {
+			s.schedulerTargetState = ""
+			s.schedulerTargetSince = time.Time{}
+			s.lastSchedulerStateCheck = time.Time{}
+			s.lastSchedulerCorrection = time.Time{}
 			s.mu.Unlock()
 			continue
 		}
 
-		relayState := s.relayState
-		stateTime := s.relayStateTime
 		timeOn := s.settings.TimeOn
 		timeOff := s.settings.TimeOff
-		s.mu.Unlock()
+		targetState := s.schedulerTargetState
+		targetSince := s.schedulerTargetSince
+		relayState := s.relayState
 
-		if stateTime.IsZero() {
-			s.mu.Lock()
-			s.relayStateTime = time.Now()
-			s.mu.Unlock()
-			continue
+		if targetState == "" || targetSince.IsZero() {
+			s.schedulerTargetState = "ON"
+			s.schedulerTargetSince = now
+			s.relayState = "ON"
+			s.relayStateTime = now
+			commandToSend = "on"
+			shouldRequestState = true
+			log.Println("[SCHEDULER] Initializing cycle in ON phase.")
+		} else {
+			elapsed := now.Sub(targetSince)
+
+			if targetState == "ON" {
+				limit := time.Duration(timeOn) * time.Minute
+				if elapsed >= limit {
+					log.Printf("[SCHEDULER] ON time limit reached (%d min). Turning relay OFF.\n", timeOn)
+					s.schedulerTargetState = "OFF"
+					s.schedulerTargetSince = now
+					s.relayState = "OFF"
+					s.relayStateTime = now
+					commandToSend = "off"
+					shouldRequestState = true
+					targetState = "OFF"
+				}
+			} else if targetState == "OFF" {
+				limit := time.Duration(timeOff) * time.Minute
+				if elapsed >= limit {
+					log.Printf("[SCHEDULER] OFF time limit reached (%d min). Turning relay ON.\n", timeOff)
+					s.schedulerTargetState = "ON"
+					s.schedulerTargetSince = now
+					s.relayState = "ON"
+					s.relayStateTime = now
+					commandToSend = "on"
+					shouldRequestState = true
+					targetState = "ON"
+				}
+			}
 		}
 
-		elapsed := time.Since(stateTime)
+		if now.Sub(s.lastSchedulerStateCheck) >= 30*time.Second {
+			s.lastSchedulerStateCheck = now
+			shouldRequestState = true
+		}
 
-		if relayState == "ON" {
-			limit := time.Duration(timeOn) * time.Minute
-			if elapsed >= limit {
-				log.Printf("[SCHEDULER] ON time limit reached (%d min). Turning relay OFF.\n", timeOn)
-				s.SendCommand("off")
-				s.mu.Lock()
-				s.relayState = "OFF"
-				s.relayStateTime = time.Now()
-				s.mu.Unlock()
-			}
-		} else if relayState == "OFF" {
-			limit := time.Duration(timeOff) * time.Minute
-			if elapsed >= limit {
-				log.Printf("[SCHEDULER] OFF time limit reached (%d min). Turning relay ON.\n", timeOff)
-				s.SendCommand("on")
-				s.mu.Lock()
-				s.relayState = "ON"
-				s.relayStateTime = time.Now()
-				s.mu.Unlock()
-			}
-		} else {
-			// If status is Desconocido (Unknown), default to turning it OFF to initialize
-			log.Println("[SCHEDULER] Relay state is unknown. Enforcing OFF state to initialize cycle.")
-			s.SendCommand("off")
-			s.mu.Lock()
-			s.relayState = "OFF"
-			s.relayStateTime = time.Now()
-			s.mu.Unlock()
+		relayStateKnown := relayState == "ON" || relayState == "OFF"
+		if commandToSend == "" && relayStateKnown && targetState != "" && relayState != targetState && now.Sub(s.lastSchedulerCorrection) >= 15*time.Second {
+			s.lastSchedulerCorrection = now
+			commandToSend = strings.ToLower(targetState)
+			shouldRequestState = true
+			s.relayState = targetState
+			s.relayStateTime = now
+			log.Printf("[SCHEDULER] Relay drift detected. Expected %s, got %s. Correcting.\n", targetState, relayState)
+		}
+
+		s.mu.Unlock()
+
+		if commandToSend != "" {
+			_ = s.SendCommand(commandToSend)
+		}
+		if shouldRequestState {
+			_ = s.SendCommand("state")
 		}
 	}
 }
