@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/erick/pagosbolivar/internal/models"
@@ -49,7 +50,24 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		db.Create(&h)
+
+		h.Numero = strings.TrimSpace(h.Numero)
+		if h.Numero == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Debe indicar el numero de habitacion"})
+			return
+		}
+		if _, exists, err := services.FindHabitacionByNumero(db, h.Numero, 0); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate habitacion"})
+			return
+		} else if exists {
+			c.JSON(http.StatusConflict, gin.H{"error": "Ya existe una habitacion con ese numero"})
+			return
+		}
+
+		if err := db.Create(&h).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create habitacion"})
+			return
+		}
 		c.JSON(http.StatusCreated, h)
 	})
 
@@ -64,6 +82,19 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		var updateData models.Habitacion
 		if err := c.ShouldBindJSON(&updateData); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		updateData.Numero = strings.TrimSpace(updateData.Numero)
+		if updateData.Numero == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Debe indicar el numero de habitacion"})
+			return
+		}
+		if _, exists, err := services.FindHabitacionByNumero(db, updateData.Numero, h.ID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate habitacion"})
+			return
+		} else if exists {
+			c.JSON(http.StatusConflict, gin.H{"error": "Ya existe otra habitacion con ese numero"})
 			return
 		}
 
@@ -108,6 +139,22 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		if ct.FechaInicio.IsZero() {
 			ct.FechaInicio = time.Now()
 		}
+
+		if exists, err := services.HasActiveContratoForHabitacion(db, ct.HabitacionID, 0); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate habitacion contract"})
+			return
+		} else if exists {
+			c.JSON(http.StatusConflict, gin.H{"error": "La habitacion ya tiene un contrato activo"})
+			return
+		}
+		if exists, err := services.HasActiveContratoForInquilino(db, ct.InquilinoID, 0); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate inquilino contract"})
+			return
+		} else if exists {
+			c.JSON(http.StatusConflict, gin.H{"error": "El inquilino ya tiene un contrato activo"})
+			return
+		}
+
 		if err := db.Create(&ct).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create contrato"})
 			return
@@ -146,6 +193,23 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		ct.TipoContrato = updateData.TipoContrato
 		ct.MontoMensual = updateData.MontoMensual
 		ct.MontoGarantia = updateData.MontoGarantia
+
+		if ct.Estado == "Activo" {
+			if exists, err := services.HasActiveContratoForHabitacion(db, ct.HabitacionID, ct.ID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate habitacion contract"})
+				return
+			} else if exists {
+				c.JSON(http.StatusConflict, gin.H{"error": "La habitacion ya tiene otro contrato activo"})
+				return
+			}
+			if exists, err := services.HasActiveContratoForInquilino(db, ct.InquilinoID, ct.ID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to validate inquilino contract"})
+				return
+			} else if exists {
+				c.JSON(http.StatusConflict, gin.H{"error": "El inquilino ya tiene otro contrato activo"})
+				return
+			}
+		}
 
 		db.Save(&ct)
 		db.Preload("Habitacion").Preload("Inquilino").First(&ct, ct.ID)

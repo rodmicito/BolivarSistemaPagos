@@ -27,6 +27,10 @@ func InitDB(dsn string) (*gorm.DB, error) {
 		log.Printf("Failed to backfill inquilinos: %v", err)
 		return nil, err
 	}
+	if err := ensurePagoMensualUniqueIndex(db); err != nil {
+		log.Printf("Failed to ensure payment uniqueness: %v", err)
+		return nil, err
+	}
 
 	log.Println("Database schema migrated.")
 
@@ -41,4 +45,22 @@ func backfillLegacyInquilinos(db *gorm.DB) error {
 	tableName := stmt.Schema.Table
 	hasLegacyName := db.Migrator().HasColumn(tableName, "inquilino_nombre")
 	return services.BackfillLegacyInquilinos(db, tableName, hasLegacyName)
+}
+
+func ensurePagoMensualUniqueIndex(db *gorm.DB) error {
+	stmt := &gorm.Statement{DB: db}
+	if err := stmt.Parse(&models.PagoMensual{}); err != nil {
+		return err
+	}
+	tableName := stmt.Schema.Table
+
+	if err := db.Exec(
+		"DELETE FROM " + tableName + " WHERE id NOT IN (SELECT MIN(id) FROM " + tableName + " GROUP BY contrato_id, anio, mes)",
+	).Error; err != nil {
+		return err
+	}
+
+	return db.Exec(
+		"CREATE UNIQUE INDEX IF NOT EXISTS idx_pago_mensual_unique_period ON " + tableName + " (contrato_id, anio, mes)",
+	).Error
 }

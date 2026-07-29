@@ -29,6 +29,18 @@ func TestInitDBBackfillsLegacyInquilinosWithoutDuplicates(t *testing.T) {
 		t.Fatalf("insert legacy contratos: %v", err)
 	}
 
+	pagoStmt := &gorm.Statement{DB: legacyDB}
+	if err := pagoStmt.Parse(&models.PagoMensual{}); err != nil {
+		t.Fatalf("parse pago schema: %v", err)
+	}
+	pagoTableName := pagoStmt.Schema.Table
+	if err := legacyDB.Exec("CREATE TABLE " + pagoTableName + " (id integer primary key autoincrement, contrato_id integer, anio integer, mes integer, monto_total real)").Error; err != nil {
+		t.Fatalf("create legacy pagos table: %v", err)
+	}
+	if err := legacyDB.Exec("INSERT INTO " + pagoTableName + " (contrato_id, anio, mes, monto_total) VALUES (1, 2026, 1, 100), (1, 2026, 1, 100), (1, 2026, 2, 100)").Error; err != nil {
+		t.Fatalf("insert duplicate legacy payments: %v", err)
+	}
+
 	legacySQL, err := legacyDB.DB()
 	if err != nil {
 		t.Fatalf("get legacy sql db: %v", err)
@@ -59,5 +71,18 @@ func TestInitDBBackfillsLegacyInquilinosWithoutDuplicates(t *testing.T) {
 	}
 	if distinctInquilinos != 1 {
 		t.Fatalf("expected legacy contracts to share one inquilino_id, got %d", distinctInquilinos)
+	}
+
+	var pagos int64
+	if err := db.Model(&models.PagoMensual{}).Count(&pagos).Error; err != nil {
+		t.Fatalf("count migrated payments: %v", err)
+	}
+	if pagos != 2 {
+		t.Fatalf("expected duplicate legacy payments to be pruned to 2 rows, got %d", pagos)
+	}
+
+	duplicate := models.PagoMensual{ContratoID: 1, Anio: 2026, Mes: 1}
+	if err := db.Create(&duplicate).Error; err == nil {
+		t.Fatal("expected unique payment index to reject duplicate period")
 	}
 }
