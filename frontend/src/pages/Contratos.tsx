@@ -6,10 +6,22 @@ interface Habitacion {
   numero: string;
 }
 
+interface Inquilino {
+  id?: number;
+  nombre: string;
+  documento: string;
+  telefono: string;
+  email: string;
+  observaciones?: string;
+  activo?: boolean;
+}
+
 interface Contrato {
   id?: number;
   habitacion_id?: number;
   habitacion?: { numero: string };
+  inquilino_id?: number;
+  inquilino?: Inquilino;
   inquilino_nombre: string;
   tipo_contrato: string;
   monto_mensual: number;
@@ -21,8 +33,9 @@ interface Contrato {
 export default function Contratos() {
   const [contratos, setContratos] = useState<Contrato[]>([]);
   const [habitaciones, setHabitaciones] = useState<Habitacion[]>([]);
+  const [inquilinos, setInquilinos] = useState<Inquilino[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Filters
   const [filterEstado, setFilterEstado] = useState('Todos');
   const [filterTipo, setFilterTipo] = useState('Todos');
@@ -32,15 +45,18 @@ export default function Contratos() {
   const [selectedContrato, setSelectedContrato] = useState<Contrato | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [useNewInquilino, setUseNewInquilino] = useState(false);
 
   const loadData = () => {
     Promise.all([
       fetch('/api/contratos').then(r => r.json()),
-      fetch('/api/habitaciones').then(r => r.json())
+      fetch('/api/habitaciones').then(r => r.json()),
+      fetch('/api/inquilinos').then(r => r.json())
     ])
-    .then(([contratosData, habitacionesData]) => {
+    .then(([contratosData, habitacionesData, inquilinosData]) => {
       setContratos(contratosData || []);
       setHabitaciones(habitacionesData || []);
+      setInquilinos(inquilinosData || []);
       setLoading(false);
     })
     .catch(console.error);
@@ -87,9 +103,13 @@ export default function Contratos() {
   };
 
   const openCreateModal = () => {
+    const firstInquilino = inquilinos[0];
     setIsCreating(true);
+    setUseNewInquilino(!firstInquilino);
     setSelectedContrato({
-      inquilino_nombre: '',
+      inquilino_id: firstInquilino?.id,
+      inquilino: firstInquilino || { nombre: '', documento: '', telefono: '', email: '' },
+      inquilino_nombre: firstInquilino?.nombre || '',
       estado: 'Activo',
       tipo_contrato: 'Alquiler',
       monto_mensual: 0,
@@ -101,6 +121,7 @@ export default function Contratos() {
 
   const openEditModal = (c: Contrato) => {
     setIsCreating(false);
+    setUseNewInquilino(false);
     setSelectedContrato(c);
     setIsModalOpen(true);
   };
@@ -116,13 +137,15 @@ export default function Contratos() {
 
     const payload = {
       ...selectedContrato,
-      habitacion_id: selectedContrato.habitacion_id ? Number(selectedContrato.habitacion_id) : undefined
+      habitacion_id: selectedContrato.habitacion_id ? Number(selectedContrato.habitacion_id) : undefined,
+      inquilino_id: selectedContrato.inquilino?.id,
+      inquilino_nombre: selectedContrato.inquilino?.nombre || selectedContrato.inquilino_nombre,
     };
 
-    const url = isCreating 
-      ? '/api/contratos' 
+    const url = isCreating
+      ? '/api/contratos'
       : `/api/contratos/${selectedContrato.id}`;
-      
+
     const method = isCreating ? 'POST' : 'PUT';
 
     fetch(url, {
@@ -139,11 +162,11 @@ export default function Contratos() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
-      
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 transition-colors">Gestión de Contratos</h2>
-        <button 
+        <button
           onClick={openCreateModal}
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors shadow-sm w-full sm:w-auto"
         >
@@ -230,7 +253,7 @@ export default function Contratos() {
           <div key={c.id} className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-sm space-y-4">
             <div className="flex justify-between items-start">
               <div>
-                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-base">{c.inquilino_nombre}</h4>
+                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-base">{c.inquilino?.nombre || c.inquilino_nombre}</h4>
                 <p className="text-xs text-slate-400 dark:text-slate-500">Inicio: {c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString() : 'N/A'}</p>
               </div>
               <span className="inline-flex items-center justify-center bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 px-3 py-1 rounded-lg font-bold text-xs border border-indigo-100 dark:border-indigo-900/50">
@@ -257,7 +280,7 @@ export default function Contratos() {
             <div className="flex justify-between items-center pt-3 border-t border-slate-100 dark:border-slate-700/60">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-500 dark:text-slate-400">Estado:</span>
-                <button 
+                <button
                   onClick={() => handleToggleEstado(c)}
                   className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${c.estado === 'Activo' ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                 >
@@ -303,7 +326,7 @@ export default function Contratos() {
               ) : filteredContratos.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/50 transition-colors group">
                   <td className="p-5">
-                    <p className="font-bold text-slate-800 dark:text-slate-100">{c.inquilino_nombre}</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{c.inquilino?.nombre || c.inquilino_nombre}</p>
                     <p className="text-xs text-slate-400 dark:text-slate-500">Inicio: {c.fecha_inicio ? new Date(c.fecha_inicio).toLocaleDateString() : 'N/A'}</p>
                   </td>
                   <td className="p-5 text-center">
@@ -324,7 +347,7 @@ export default function Contratos() {
                   </td>
                   <td className="p-5 text-center">
                     {/* Toggle Slider */}
-                    <button 
+                    <button
                       onClick={() => handleToggleEstado(c)}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${c.estado === 'Activo' ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
                     >
@@ -363,21 +386,118 @@ export default function Contratos() {
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-1">
               <form id="editContratoForm" onSubmit={handleSave} className="space-y-6">
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Nombre del Inquilino</label>
-                    <input 
-                      type="text" 
-                      value={selectedContrato.inquilino_nombre}
-                      onChange={(e) => setSelectedContrato({...selectedContrato, inquilino_nombre: e.target.value})}
-                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
-                      required 
-                    />
+
+                <div className="space-y-4">
+                  {isCreating && inquilinos.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Inquilino</label>
+                      <select
+                        value={useNewInquilino ? '__new__' : selectedContrato.inquilino?.id || selectedContrato.inquilino_id || ''}
+                        onChange={(e) => {
+                          if (e.target.value === '__new__') {
+                            setUseNewInquilino(true);
+                            setSelectedContrato({
+                              ...selectedContrato,
+                              inquilino_id: undefined,
+                              inquilino: { nombre: '', documento: '', telefono: '', email: '' },
+                              inquilino_nombre: '',
+                            });
+                            return;
+                          }
+                          const selected = inquilinos.find(i => i.id === Number(e.target.value));
+                          setUseNewInquilino(false);
+                          setSelectedContrato({
+                            ...selectedContrato,
+                            inquilino_id: selected?.id,
+                            inquilino: selected,
+                            inquilino_nombre: selected?.nombre || '',
+                          });
+                        }}
+                        className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                        required
+                      >
+                        {inquilinos.map(i => (
+                          <option key={i.id} value={i.id}>{i.nombre}{i.documento ? ` - ${i.documento}` : ''}</option>
+                        ))}
+                        <option value="__new__">+ Registrar nuevo inquilino</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Nombre del Inquilino</label>
+                      <input
+                        type="text"
+                        value={selectedContrato.inquilino?.nombre || selectedContrato.inquilino_nombre}
+                        disabled={!useNewInquilino && isCreating}
+                        onChange={(e) => setSelectedContrato({
+                          ...selectedContrato,
+                          inquilino_nombre: e.target.value,
+                          inquilino: {
+                            ...(selectedContrato.inquilino || { documento: '', telefono: '', email: '' }),
+                            nombre: e.target.value,
+                          },
+                        })}
+                        className="w-full border border-slate-300 dark:border-slate-700 bg-white disabled:bg-slate-100 dark:bg-slate-800 dark:disabled:bg-slate-700/50 text-slate-900 dark:text-slate-100 disabled:text-slate-500 dark:disabled:text-slate-400 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Documento / CI</label>
+                      <input
+                        type="text"
+                        value={selectedContrato.inquilino?.documento || ''}
+                        disabled={!useNewInquilino && isCreating}
+                        onChange={(e) => setSelectedContrato({
+                          ...selectedContrato,
+                          inquilino: {
+                            ...(selectedContrato.inquilino || { nombre: selectedContrato.inquilino_nombre, telefono: '', email: '' }),
+                            documento: e.target.value,
+                          },
+                        })}
+                        className="w-full border border-slate-300 dark:border-slate-700 bg-white disabled:bg-slate-100 dark:bg-slate-800 dark:disabled:bg-slate-700/50 text-slate-900 dark:text-slate-100 disabled:text-slate-500 dark:disabled:text-slate-400 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Teléfono</label>
+                      <input
+                        type="text"
+                        value={selectedContrato.inquilino?.telefono || ''}
+                        disabled={!useNewInquilino && isCreating}
+                        onChange={(e) => setSelectedContrato({
+                          ...selectedContrato,
+                          inquilino: {
+                            ...(selectedContrato.inquilino || { nombre: selectedContrato.inquilino_nombre, documento: '', email: '' }),
+                            telefono: e.target.value,
+                          },
+                        })}
+                        className="w-full border border-slate-300 dark:border-slate-700 bg-white disabled:bg-slate-100 dark:bg-slate-800 dark:disabled:bg-slate-700/50 text-slate-900 dark:text-slate-100 disabled:text-slate-500 dark:disabled:text-slate-400 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={selectedContrato.inquilino?.email || ''}
+                        disabled={!useNewInquilino && isCreating}
+                        onChange={(e) => setSelectedContrato({
+                          ...selectedContrato,
+                          inquilino: {
+                            ...(selectedContrato.inquilino || { nombre: selectedContrato.inquilino_nombre, documento: '', telefono: '' }),
+                            email: e.target.value,
+                          },
+                        })}
+                        className="w-full border border-slate-300 dark:border-slate-700 bg-white disabled:bg-slate-100 dark:bg-slate-800 dark:disabled:bg-slate-700/50 text-slate-900 dark:text-slate-100 disabled:text-slate-500 dark:disabled:text-slate-400 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                      />
+                    </div>
                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Habitación {isCreating ? '(Seleccionar)' : '(Asignada)'}
@@ -394,8 +514,8 @@ export default function Contratos() {
                         ))}
                       </select>
                     ) : (
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         value={selectedContrato.habitacion?.numero || 'N/A'}
                         disabled
                         className="w-full border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 rounded-lg px-4 py-2.5 cursor-not-allowed transition-colors"
@@ -406,7 +526,7 @@ export default function Contratos() {
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Estado del Contrato</label>
-                  <select 
+                  <select
                     value={selectedContrato.estado}
                     onChange={(e) => setSelectedContrato({...selectedContrato, estado: e.target.value})}
                     className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
@@ -421,7 +541,7 @@ export default function Contratos() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Tipo Contrato</label>
-                    <select 
+                    <select
                       value={selectedContrato.tipo_contrato || 'Alquiler'}
                       onChange={(e) => setSelectedContrato({...selectedContrato, tipo_contrato: e.target.value})}
                       className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
@@ -432,8 +552,8 @@ export default function Contratos() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Monto Mensual (Bs)</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={selectedContrato.monto_mensual || 0}
                       onChange={(e) => setSelectedContrato({...selectedContrato, monto_mensual: parseFloat(e.target.value) || 0})}
                       className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
@@ -441,8 +561,8 @@ export default function Contratos() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Monto Garantía (Bs)</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={selectedContrato.monto_garantia || 0}
                       onChange={(e) => setSelectedContrato({...selectedContrato, monto_garantia: parseFloat(e.target.value) || 0})}
                       className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
@@ -452,18 +572,18 @@ export default function Contratos() {
 
               </form>
             </div>
-            
+
             <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 rounded-b-2xl">
-              <button 
-                type="button" 
-                onClick={closeModal} 
+              <button
+                type="button"
+                onClick={closeModal}
                 className="px-6 py-2.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
               >
                 Cancelar
               </button>
-              <button 
-                type="submit" 
-                form="editContratoForm" 
+              <button
+                type="submit"
+                form="editContratoForm"
                 className="px-6 py-2.5 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm"
               >
                 {isCreating ? 'Crear Contrato' : 'Guardar Cambios'}

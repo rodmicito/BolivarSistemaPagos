@@ -85,7 +85,8 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 	// === CONTRATOS ===
 	api.GET("/contratos", func(c *gin.Context) {
 		var contratos []models.Contrato
-		db.Preload("Habitacion").Find(&contratos)
+		db.Preload("Habitacion").Preload("Inquilino").Find(&contratos)
+		services.SyncContratosInquilinoNombre(contratos)
 		c.JSON(http.StatusOK, contratos)
 	})
 
@@ -96,7 +97,17 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 			return
 		}
 
+		inquilino, err := services.FindOrCreateInquilino(db, ct.Inquilino, ct.InquilinoNombre)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Debe indicar un inquilino valido"})
+			return
+		}
+
+		ct.InquilinoID = inquilino.ID
 		ct.Estado = "Activo"
+		if ct.FechaInicio.IsZero() {
+			ct.FechaInicio = time.Now()
+		}
 		if err := db.Create(&ct).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create contrato"})
 			return
@@ -105,6 +116,8 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		// Generate monthly payments
 		services.CrearPagosMensualesDelAnio(db, ct, time.Now().Year())
 
+		db.Preload("Habitacion").Preload("Inquilino").First(&ct, ct.ID)
+		services.SyncContratoInquilinoNombre(&ct)
 		c.JSON(http.StatusCreated, ct)
 	})
 
@@ -122,15 +135,74 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 			return
 		}
 
-		// Update fields related to Inquilino/Contrato
-		ct.InquilinoNombre = updateData.InquilinoNombre
+		inquilino, err := services.FindOrCreateInquilino(db, updateData.Inquilino, updateData.InquilinoNombre)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Debe indicar un inquilino valido"})
+			return
+		}
+
+		ct.InquilinoID = inquilino.ID
 		ct.Estado = updateData.Estado
 		ct.TipoContrato = updateData.TipoContrato
 		ct.MontoMensual = updateData.MontoMensual
 		ct.MontoGarantia = updateData.MontoGarantia
 
 		db.Save(&ct)
+		db.Preload("Habitacion").Preload("Inquilino").First(&ct, ct.ID)
+		services.SyncContratoInquilinoNombre(&ct)
 		c.JSON(http.StatusOK, ct)
+	})
+
+	// === INQUILINOS ===
+	api.GET("/inquilinos", func(c *gin.Context) {
+		var inquilinos []models.Inquilino
+		db.Order("nombre asc").Find(&inquilinos)
+		c.JSON(http.StatusOK, inquilinos)
+	})
+
+	api.POST("/inquilinos", func(c *gin.Context) {
+		var inquilino models.Inquilino
+		if err := c.ShouldBindJSON(&inquilino); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		created, err := services.FindOrCreateInquilino(db, inquilino, inquilino.Nombre)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Debe indicar un nombre de inquilino"})
+			return
+		}
+
+		c.JSON(http.StatusCreated, created)
+	})
+
+	api.PUT("/inquilinos/:id", func(c *gin.Context) {
+		id := c.Param("id")
+		var inquilino models.Inquilino
+		if err := db.First(&inquilino, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Inquilino not found"})
+			return
+		}
+
+		var updateData models.Inquilino
+		if err := c.ShouldBindJSON(&updateData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		inquilino.Nombre = updateData.Nombre
+		inquilino.Documento = updateData.Documento
+		inquilino.Telefono = updateData.Telefono
+		inquilino.Email = updateData.Email
+		inquilino.Observaciones = updateData.Observaciones
+		inquilino.Activo = updateData.Activo
+
+		if err := db.Save(&inquilino).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update inquilino"})
+			return
+		}
+
+		c.JSON(http.StatusOK, inquilino)
 	})
 
 	api.DELETE("/contratos/:id", func(c *gin.Context) {
@@ -160,7 +232,10 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 	// === PAGOS ===
 	api.GET("/pagos", func(c *gin.Context) {
 		var pagos []models.PagoMensual
-		db.Preload("Contrato.Habitacion").Find(&pagos)
+		db.Preload("Contrato.Habitacion").Preload("Contrato.Inquilino").Find(&pagos)
+		for i := range pagos {
+			services.SyncContratoInquilinoNombre(&pagos[i].Contrato)
+		}
 		c.JSON(http.StatusOK, pagos)
 	})
 

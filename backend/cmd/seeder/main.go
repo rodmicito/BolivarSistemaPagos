@@ -27,10 +27,18 @@ func main() {
 	// Create Contract
 	ahora := time.Now()
 	inicioAnio := time.Date(ahora.Year(), 1, 5, 0, 0, 0, 0, time.UTC)
-	
+
+	inquilino, err := services.FindOrCreateInquilino(db, models.Inquilino{
+		Nombre: "Juan Perez",
+	}, "Juan Perez")
+	if err != nil {
+		log.Fatalf("Error creando inquilino: %v", err)
+	}
+	log.Println("Inquilino creado:", inquilino.ID)
+
 	contrato := models.Contrato{
 		HabitacionID:    habitacion.ID,
-		InquilinoNombre: "Juan Perez",
+		InquilinoID:     inquilino.ID,
 		TipoContrato:    "Alquiler",
 		MontoMensual:    1500,
 		MontoServicios:  50,
@@ -40,7 +48,7 @@ func main() {
 		FechaInicio:     inicioAnio,
 		Estado:          "Activo",
 	}
-	db.FirstOrCreate(&contrato, models.Contrato{InquilinoNombre: "Juan Perez"})
+	db.FirstOrCreate(&contrato, models.Contrato{InquilinoID: inquilino.ID})
 	log.Println("Contrato creado:", contrato.ID)
 
 	// Create Payments

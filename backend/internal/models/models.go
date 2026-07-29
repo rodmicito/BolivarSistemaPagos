@@ -23,22 +23,36 @@ type Habitacion struct {
 	UpdatedAt         time.Time
 }
 
+type Inquilino struct {
+	ID            uint   `json:"id" gorm:"primaryKey"`
+	Nombre        string `json:"nombre" gorm:"not null;index"`
+	Documento     string `json:"documento" gorm:"index"`
+	Telefono      string `json:"telefono"`
+	Email         string `json:"email"`
+	Observaciones string `json:"observaciones"`
+	Activo        bool   `json:"activo" gorm:"default:true"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 type Contrato struct {
-	ID               uint      `json:"id" gorm:"primaryKey"`
-	HabitacionID     uint      `json:"habitacion_id"`
-	Habitacion       Habitacion `json:"habitacion" gorm:"foreignKey:HabitacionID"`
-	InquilinoNombre  string    `json:"inquilino_nombre"`
-	TipoContrato     string    `json:"tipo_contrato"` // Alquiler o Anticretico
-	MontoMensual     float64   `json:"monto_mensual"`
-	MontoServicios   float64   `json:"monto_servicios"`
-	IncluyeInternet  bool      `json:"incluye_internet"`
-	MontoInternet    float64   `json:"monto_internet"`
-	MontoGarantia    float64   `json:"monto_garantia"`
-	FechaInicio      time.Time `json:"fecha_inicio"`
-	FechaFin         *time.Time `json:"fecha_fin"`
-	Estado           string    `json:"estado"` // Activo, Inactivo
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID              uint       `json:"id" gorm:"primaryKey"`
+	HabitacionID    uint       `json:"habitacion_id"`
+	Habitacion      Habitacion `json:"habitacion" gorm:"foreignKey:HabitacionID"`
+	InquilinoID     uint       `json:"inquilino_id" gorm:"index"`
+	Inquilino       Inquilino  `json:"inquilino" gorm:"foreignKey:InquilinoID"`
+	InquilinoNombre string     `json:"inquilino_nombre" gorm:"-"`
+	TipoContrato    string     `json:"tipo_contrato"` // Alquiler o Anticretico
+	MontoMensual    float64    `json:"monto_mensual"`
+	MontoServicios  float64    `json:"monto_servicios"`
+	IncluyeInternet bool       `json:"incluye_internet"`
+	MontoInternet   float64    `json:"monto_internet"`
+	MontoGarantia   float64    `json:"monto_garantia"`
+	FechaInicio     time.Time  `json:"fecha_inicio"`
+	FechaFin        *time.Time `json:"fecha_fin"`
+	Estado          string     `json:"estado"` // Activo, Inactivo
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type PagoMensual struct {
@@ -62,26 +76,26 @@ type PagoMensual struct {
 }
 
 type AutomationSetting struct {
-	ID               uint   `json:"id" gorm:"primaryKey"`
-	Broker           string `json:"broker"`
-	RelayCmdTopic    string `json:"relay_cmd_topic"`
-	RelayStateTopic  string `json:"relay_state_topic"`
-	TelemetryTopic   string `json:"telemetry_topic"`
-	KeyPorcentaje    string `json:"key_porcentaje"`
-	KeyNivel         string `json:"key_nivel"`
-	KeyDistancia     string `json:"key_distancia"`
-	KeyCaudalEntrada string `json:"key_caudal_entrada"`
-	KeyCaudalSalida  string `json:"key_caudal_salida"`
-	KeyBalance       string `json:"key_balance"`
-	KeyLm            string `json:"key_lm"`
-	KeyLm2           string `json:"key_lm2"`
-	SchedulerActive  bool   `json:"scheduler_active"`
-	TimeOn           int    `json:"time_on"`
-	TimeOff          int    `json:"time_off"`
-	DbLogActive         bool   `json:"db_log_active"`
-	DbLogInterval       int    `json:"db_log_interval"`
-	AutoOffDuration     int    `json:"auto_off_duration"`
-	DbLogRetentionDays  int    `json:"db_log_retention_days"`
+	ID                 uint   `json:"id" gorm:"primaryKey"`
+	Broker             string `json:"broker"`
+	RelayCmdTopic      string `json:"relay_cmd_topic"`
+	RelayStateTopic    string `json:"relay_state_topic"`
+	TelemetryTopic     string `json:"telemetry_topic"`
+	KeyPorcentaje      string `json:"key_porcentaje"`
+	KeyNivel           string `json:"key_nivel"`
+	KeyDistancia       string `json:"key_distancia"`
+	KeyCaudalEntrada   string `json:"key_caudal_entrada"`
+	KeyCaudalSalida    string `json:"key_caudal_salida"`
+	KeyBalance         string `json:"key_balance"`
+	KeyLm              string `json:"key_lm"`
+	KeyLm2             string `json:"key_lm2"`
+	SchedulerActive    bool   `json:"scheduler_active"`
+	TimeOn             int    `json:"time_on"`
+	TimeOff            int    `json:"time_off"`
+	DbLogActive        bool   `json:"db_log_active"`
+	DbLogInterval      int    `json:"db_log_interval"`
+	AutoOffDuration    int    `json:"auto_off_duration"`
+	DbLogRetentionDays int    `json:"db_log_retention_days"`
 }
 
 type TelemetryLog struct {
@@ -98,5 +112,3 @@ type TelemetryLog struct {
 	RelayState    string    `json:"relay_state"`
 	RelayCmd      string    `json:"relay_cmd"`
 }
-
-
