@@ -107,3 +107,24 @@ func CrearPagosMensualesDelAnio(db *gorm.DB, contrato models.Contrato, anio int)
 	}
 	return nil
 }
+
+func ActualizarVencimientosPagosNoCobrados(db *gorm.DB, contrato models.Contrato) error {
+	var pagos []models.PagoMensual
+	if err := db.Where(
+		"contrato_id = ? AND estado_pago <> ?",
+		contrato.ID,
+		"Pagado",
+	).Find(&pagos).Error; err != nil {
+		return err
+	}
+
+	for i := range pagos {
+		pagos[i].FechaVencimiento = CalcularFechaVencimiento(contrato.FechaInicio, pagos[i].Mes, pagos[i].Anio)
+		pagos[i].EstadoPago = DeterminarEstadoPago(pagos[i].EstadoPago, pagos[i].FechaVencimiento, pagos[i].MontoTotal, pagos[i].MontoPagado)
+		if err := db.Save(&pagos[i]).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

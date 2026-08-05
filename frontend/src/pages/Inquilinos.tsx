@@ -29,10 +29,12 @@ interface Contrato {
   monto_mensual: number;
   monto_garantia: number;
   estado: string;
+  fecha_inicio?: string;
 }
 
 interface InquilinoFormState extends Inquilino {
   habitacion_id?: number;
+  dia_pago: number;
 }
 
 const emptyInquilino: InquilinoFormState = {
@@ -43,6 +45,30 @@ const emptyInquilino: InquilinoFormState = {
   observaciones: '',
   activo: true,
   habitacion_id: undefined,
+  dia_pago: new Date().getDate(),
+};
+
+const clampPaymentDay = (value: number) => {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(Math.max(Math.trunc(value), 1), 31);
+};
+
+const getPaymentDayFromContract = (contrato?: Contrato) => {
+  if (!contrato?.fecha_inicio) return new Date().getDate();
+  const fechaInicio = new Date(contrato.fecha_inicio);
+  if (Number.isNaN(fechaInicio.getTime())) return new Date().getDate();
+  return clampPaymentDay(fechaInicio.getDate());
+};
+
+const buildContractStartDate = (day: number, currentStartDate?: string) => {
+  const base = currentStartDate ? new Date(currentStartDate) : new Date();
+  const safeBase = Number.isNaN(base.getTime()) ? new Date() : base;
+  const year = safeBase.getFullYear();
+  const month = safeBase.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const safeDay = Math.min(clampPaymentDay(day), lastDay);
+
+  return new Date(year, month, safeDay, 0, 0, 0, 0).toISOString();
 };
 
 export default function Inquilinos() {
@@ -127,12 +153,6 @@ export default function Inquilinos() {
     loadData();
   }, []);
 
-  const getActiveRoomIdForTenant = (inquilinoId?: number) => {
-    if (!inquilinoId) return undefined;
-    const contrato = activeContractByTenantId.get(Number(inquilinoId));
-    return contrato?.habitacion_id ? Number(contrato.habitacion_id) : undefined;
-  };
-
   const getRoomLabel = (habitacionId?: number) => {
     if (!habitacionId) return 'Sin cuarto asignado';
     const habitacion = habitacionById.get(Number(habitacionId));
@@ -156,10 +176,13 @@ export default function Inquilinos() {
   };
 
   const handleCardClick = (inquilino: Inquilino) => {
+    const activeContract = activeContractByTenantId.get(Number(inquilino.id));
+
     setIsCreating(false);
     setSelectedInquilino({
       ...inquilino,
-      habitacion_id: getActiveRoomIdForTenant(inquilino.id),
+      habitacion_id: activeContract?.habitacion_id ? Number(activeContract.habitacion_id) : undefined,
+      dia_pago: getPaymentDayFromContract(activeContract),
     });
     setIsModalOpen(true);
     setError(null);
@@ -200,11 +223,12 @@ export default function Inquilinos() {
     return response.json();
   };
 
-  const syncTenantRoom = async (savedInquilino: Inquilino, nextRoomId?: number) => {
+  const syncTenantRoom = async (savedInquilino: Inquilino, nextRoomId: number | undefined, paymentDay: number) => {
     const existingContract = activeContractByTenantId.get(Number(savedInquilino.id));
     const currentRoomId = existingContract?.habitacion_id ? Number(existingContract.habitacion_id) : undefined;
+    const currentPaymentDay = getPaymentDayFromContract(existingContract);
 
-    if (currentRoomId === nextRoomId) {
+    if (currentRoomId === nextRoomId && currentPaymentDay === paymentDay) {
       return;
     }
 
@@ -222,6 +246,7 @@ export default function Inquilinos() {
           tipo_contrato: existingContract.tipo_contrato || 'Alquiler',
           monto_mensual: existingContract.monto_mensual || 0,
           monto_garantia: existingContract.monto_garantia || 0,
+          fecha_inicio: buildContractStartDate(paymentDay, existingContract.fecha_inicio),
         }),
       });
 
@@ -248,6 +273,7 @@ export default function Inquilinos() {
       tipo_contrato: existingContract?.tipo_contrato || 'Alquiler',
       monto_mensual: existingContract?.monto_mensual || habitacion.precio_alquiler || 0,
       monto_garantia: existingContract?.monto_garantia || 0,
+      fecha_inicio: buildContractStartDate(paymentDay, existingContract?.fecha_inicio),
     };
 
     const response = await fetch(existingContract?.id ? `/api/contratos/${existingContract.id}` : '/api/contratos', {
@@ -274,6 +300,7 @@ export default function Inquilinos() {
       email: selectedInquilino.email.trim(),
       observaciones: selectedInquilino.observaciones.trim(),
       habitacion_id: selectedInquilino.habitacion_id ? Number(selectedInquilino.habitacion_id) : undefined,
+      dia_pago: clampPaymentDay(selectedInquilino.dia_pago),
     };
 
     if (!payload.nombre) {
@@ -286,7 +313,7 @@ export default function Inquilinos() {
 
     try {
       const savedInquilino = await saveTenant(payload);
-      await syncTenantRoom(savedInquilino, payload.habitacion_id);
+      await syncTenantRoom(savedInquilino, payload.habitacion_id, payload.dia_pago);
 
       setInquilinos((current) => {
         if (isCreating) {
@@ -334,7 +361,8 @@ export default function Inquilinos() {
         ) : inquilinos.length === 0 ? (
           <p className="text-slate-500 dark:text-slate-400">No hay inquilinos registrados.</p>
         ) : inquilinos.map((inquilino) => {
-          const activeRoomId = getActiveRoomIdForTenant(inquilino.id);
+          const activeContract = activeContractByTenantId.get(Number(inquilino.id));
+          const activeRoomId = activeContract?.habitacion_id ? Number(activeContract.habitacion_id) : undefined;
 
           return (
             <button
@@ -355,6 +383,11 @@ export default function Inquilinos() {
                     <Home size={13} />
                     {getRoomLabel(activeRoomId)}
                   </p>
+                  {activeContract && (
+                    <p className="flex items-center gap-1.5">
+                      Dia de pago: {getPaymentDayFromContract(activeContract)}
+                    </p>
+                  )}
                 </div>
                 <span className={`inline-block mt-3 px-2 py-1 rounded-full text-xs font-medium transition-colors ${inquilino.activo ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
                   {inquilino.activo ? 'Activo' : 'Inactivo'}
@@ -446,6 +479,24 @@ export default function Inquilinos() {
                   </select>
                   <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
                     El cuarto se guarda usando el contrato activo del inquilino.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Dia de pago del mes</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={selectedInquilino.dia_pago}
+                    onChange={(e) => setSelectedInquilino({
+                      ...selectedInquilino,
+                      dia_pago: clampPaymentDay(Number(e.target.value)),
+                    })}
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                  />
+                  <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                    Este dia actualiza los vencimientos pendientes en Pagos y Dashboard.
                   </p>
                 </div>
 

@@ -189,10 +189,16 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		}
 
 		ct.InquilinoID = inquilino.ID
+		if updateData.HabitacionID != 0 {
+			ct.HabitacionID = updateData.HabitacionID
+		}
 		ct.Estado = updateData.Estado
 		ct.TipoContrato = updateData.TipoContrato
 		ct.MontoMensual = updateData.MontoMensual
 		ct.MontoGarantia = updateData.MontoGarantia
+		if !updateData.FechaInicio.IsZero() {
+			ct.FechaInicio = updateData.FechaInicio
+		}
 
 		if ct.Estado == "Activo" {
 			if exists, err := services.HasActiveContratoForHabitacion(db, ct.HabitacionID, ct.ID); err != nil {
@@ -211,7 +217,14 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 			}
 		}
 
-		db.Save(&ct)
+		if err := db.Save(&ct).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update contrato"})
+			return
+		}
+		if err := services.ActualizarVencimientosPagosNoCobrados(db, ct); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update payment due dates"})
+			return
+		}
 		db.Preload("Habitacion").Preload("Inquilino").First(&ct, ct.ID)
 		services.SyncContratoInquilinoNombre(&ct)
 		c.JSON(http.StatusOK, ct)
