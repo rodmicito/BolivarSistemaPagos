@@ -82,25 +82,39 @@ export default function Inquilinos() {
 
   const loadData = () => {
     setLoading(true);
-    Promise.all([
-      fetch('/api/inquilinos').then((r) => {
+    fetch('/api/inquilinos')
+      .then((r) => {
         if (!r.ok) throw new Error('No se pudo cargar inquilinos');
         return r.json();
-      }),
-      fetch('/api/habitaciones').then((r) => {
-        if (!r.ok) throw new Error('No se pudo cargar habitaciones');
-        return r.json();
-      }),
-      fetch('/api/contratos').then((r) => {
-        if (!r.ok) throw new Error('No se pudo cargar contratos');
-        return r.json();
-      }),
-    ])
-      .then(([inquilinosData, habitacionesData, contratosData]) => {
+      })
+      .then(async (inquilinosData) => {
         setInquilinos(inquilinosData || []);
-        setHabitaciones(habitacionesData || []);
-        setContratos(contratosData || []);
         setError(null);
+
+        const [habitacionesResult, contratosResult] = await Promise.allSettled([
+          fetch('/api/habitaciones').then((r) => {
+            if (!r.ok) throw new Error('No se pudo cargar habitaciones');
+            return r.json();
+          }),
+          fetch('/api/contratos').then((r) => {
+            if (!r.ok) throw new Error('No se pudo cargar contratos');
+            return r.json();
+          }),
+        ]);
+
+        if (habitacionesResult.status === 'fulfilled') {
+          setHabitaciones(habitacionesResult.value || []);
+        } else {
+          console.error(habitacionesResult.reason);
+          setHabitaciones([]);
+        }
+
+        if (contratosResult.status === 'fulfilled') {
+          setContratos(contratosResult.value || []);
+        } else {
+          console.error(contratosResult.reason);
+          setContratos([]);
+        }
       })
       .catch((err) => {
         console.error(err);
