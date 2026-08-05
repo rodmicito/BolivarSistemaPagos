@@ -81,6 +81,10 @@ export default function Inquilinos() {
   const [isCreating, setIsCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('Todos');
+  const [roomFilter, setRoomFilter] = useState('Todos');
+  const [sortBy, setSortBy] = useState('nombre');
 
   const contratosActivos = useMemo(
     () => contratos.filter((contrato) => contrato.estado === 'Activo'),
@@ -105,6 +109,15 @@ export default function Inquilinos() {
     });
     return map;
   }, [contratosActivos]);
+
+  const roomOptions = useMemo(() => {
+    return habitaciones
+      .map((habitacion) => ({
+        value: String(habitacion.id),
+        label: getRoomLabelFromData(habitacion),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [habitaciones]);
 
   const loadData = () => {
     setLoading(true);
@@ -153,11 +166,15 @@ export default function Inquilinos() {
     loadData();
   }, []);
 
+  function getRoomLabelFromData(habitacion: Habitacion) {
+    return habitacion.bloque ? `Cuarto ${habitacion.numero} - ${habitacion.bloque}` : `Cuarto ${habitacion.numero}`;
+  }
+
   const getRoomLabel = (habitacionId?: number) => {
     if (!habitacionId) return 'Sin cuarto asignado';
     const habitacion = habitacionById.get(Number(habitacionId));
     if (!habitacion) return 'Cuarto no encontrado';
-    return habitacion.bloque ? `Cuarto ${habitacion.numero} - ${habitacion.bloque}` : `Cuarto ${habitacion.numero}`;
+    return getRoomLabelFromData(habitacion);
   };
 
   const getAssignableRooms = (inquilinoId?: number) => {
@@ -333,6 +350,60 @@ export default function Inquilinos() {
     }
   };
 
+  const visibleInquilinos = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    const filtered = inquilinos.filter((inquilino) => {
+      const activeContract = activeContractByTenantId.get(Number(inquilino.id));
+      const activeRoomId = activeContract?.habitacion_id ? Number(activeContract.habitacion_id) : undefined;
+      const roomLabel = getRoomLabel(activeRoomId).toLowerCase();
+      const paymentDay = activeContract ? getPaymentDayFromContract(activeContract) : null;
+
+      const matchesSearch =
+        normalizedSearch === '' ||
+        inquilino.nombre.toLowerCase().includes(normalizedSearch) ||
+        inquilino.telefono.toLowerCase().includes(normalizedSearch) ||
+        inquilino.documento.toLowerCase().includes(normalizedSearch) ||
+        roomLabel.includes(normalizedSearch) ||
+        (paymentDay !== null && String(paymentDay).includes(normalizedSearch));
+
+      const matchesStatus =
+        statusFilter === 'Todos' ||
+        (statusFilter === 'Activos' && inquilino.activo) ||
+        (statusFilter === 'Inactivos' && !inquilino.activo);
+
+      const matchesRoom =
+        roomFilter === 'Todos' ||
+        (roomFilter === 'Sin cuarto' && !activeRoomId) ||
+        String(activeRoomId || '') === roomFilter;
+
+      return matchesSearch && matchesStatus && matchesRoom;
+    });
+
+    return [...filtered].sort((a, b) => {
+      const contractA = activeContractByTenantId.get(Number(a.id));
+      const contractB = activeContractByTenantId.get(Number(b.id));
+      const roomA = contractA?.habitacion_id ? Number(contractA.habitacion_id) : undefined;
+      const roomB = contractB?.habitacion_id ? Number(contractB.habitacion_id) : undefined;
+      const dayA = contractA ? getPaymentDayFromContract(contractA) : 99;
+      const dayB = contractB ? getPaymentDayFromContract(contractB) : 99;
+
+      switch (sortBy) {
+        case 'dia_pago':
+          return dayA - dayB || a.nombre.localeCompare(b.nombre);
+        case 'cuarto':
+          return getRoomLabel(roomA).localeCompare(getRoomLabel(roomB)) || a.nombre.localeCompare(b.nombre);
+        case 'estado':
+          return Number(b.activo) - Number(a.activo) || a.nombre.localeCompare(b.nombre);
+        case 'reciente':
+          return (Number(b.id) || 0) - (Number(a.id) || 0);
+        case 'nombre':
+        default:
+          return a.nombre.localeCompare(b.nombre);
+      }
+    });
+  }, [activeContractByTenantId, getRoomLabel, inquilinos, roomFilter, searchTerm, sortBy, statusFilter]);
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -349,6 +420,63 @@ export default function Inquilinos() {
         </button>
       </div>
 
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 md:p-5 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Buscar</label>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Nombre, teléfono, cuarto o día"
+              className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Estado</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+            >
+              <option value="Todos">Todos</option>
+              <option value="Activos">Activos</option>
+              <option value="Inactivos">Inactivos</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Cuarto</label>
+            <select
+              value={roomFilter}
+              onChange={(e) => setRoomFilter(e.target.value)}
+              className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+            >
+              <option value="Todos">Todos</option>
+              <option value="Sin cuarto">Sin cuarto asignado</option>
+              {roomOptions.map((roomOption) => (
+                <option key={roomOption.value} value={roomOption.value}>
+                  {roomOption.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Ordenar por</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+            >
+              <option value="nombre">Nombre</option>
+              <option value="dia_pago">Día de pago</option>
+              <option value="cuarto">Cuarto</option>
+              <option value="estado">Estado</option>
+              <option value="reciente">Más recientes</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       {error && !isModalOpen && (
         <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 px-4 py-3 rounded-xl text-sm">
           {error}
@@ -358,9 +486,9 @@ export default function Inquilinos() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
           <p className="text-slate-500 dark:text-slate-400">Cargando...</p>
-        ) : inquilinos.length === 0 ? (
+        ) : visibleInquilinos.length === 0 ? (
           <p className="text-slate-500 dark:text-slate-400">No hay inquilinos registrados.</p>
-        ) : inquilinos.map((inquilino) => {
+        ) : visibleInquilinos.map((inquilino) => {
           const activeContract = activeContractByTenantId.get(Number(inquilino.id));
           const activeRoomId = activeContract?.habitacion_id ? Number(activeContract.habitacion_id) : undefined;
 
