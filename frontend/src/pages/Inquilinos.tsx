@@ -35,6 +35,7 @@ interface Contrato {
 interface InquilinoFormState extends Inquilino {
   habitacion_id?: number;
   dia_pago: number;
+  tipo_contrato: string;
 }
 
 const emptyInquilino: InquilinoFormState = {
@@ -46,6 +47,7 @@ const emptyInquilino: InquilinoFormState = {
   activo: true,
   habitacion_id: undefined,
   dia_pago: new Date().getDate(),
+  tipo_contrato: 'Alquiler',
 };
 
 const clampPaymentDay = (value: number) => {
@@ -58,6 +60,10 @@ const getPaymentDayFromContract = (contrato?: Contrato) => {
   const fechaInicio = new Date(contrato.fecha_inicio);
   if (Number.isNaN(fechaInicio.getTime())) return new Date().getDate();
   return clampPaymentDay(fechaInicio.getDate());
+};
+
+const getContractType = (contrato?: Contrato) => {
+  return contrato?.tipo_contrato || 'Alquiler';
 };
 
 const buildContractStartDate = (day: number, currentStartDate?: string) => {
@@ -200,6 +206,7 @@ export default function Inquilinos() {
       ...inquilino,
       habitacion_id: activeContract?.habitacion_id ? Number(activeContract.habitacion_id) : undefined,
       dia_pago: getPaymentDayFromContract(activeContract),
+      tipo_contrato: getContractType(activeContract),
     });
     setIsModalOpen(true);
     setError(null);
@@ -240,12 +247,18 @@ export default function Inquilinos() {
     return response.json();
   };
 
-  const syncTenantRoom = async (savedInquilino: Inquilino, nextRoomId: number | undefined, paymentDay: number) => {
+  const syncTenantRoom = async (
+    savedInquilino: Inquilino,
+    nextRoomId: number | undefined,
+    paymentDay: number,
+    contractType: string
+  ) => {
     const existingContract = activeContractByTenantId.get(Number(savedInquilino.id));
     const currentRoomId = existingContract?.habitacion_id ? Number(existingContract.habitacion_id) : undefined;
     const currentPaymentDay = getPaymentDayFromContract(existingContract);
+    const currentContractType = getContractType(existingContract);
 
-    if (currentRoomId === nextRoomId && currentPaymentDay === paymentDay) {
+    if (currentRoomId === nextRoomId && currentPaymentDay === paymentDay && currentContractType === contractType) {
       return;
     }
 
@@ -260,7 +273,7 @@ export default function Inquilinos() {
           inquilino: savedInquilino,
           inquilino_nombre: savedInquilino.nombre,
           estado: 'Inactivo',
-          tipo_contrato: existingContract.tipo_contrato || 'Alquiler',
+          tipo_contrato: contractType,
           monto_mensual: existingContract.monto_mensual || 0,
           monto_garantia: existingContract.monto_garantia || 0,
           fecha_inicio: buildContractStartDate(paymentDay, existingContract.fecha_inicio),
@@ -287,7 +300,7 @@ export default function Inquilinos() {
       inquilino: savedInquilino,
       inquilino_nombre: savedInquilino.nombre,
       estado: 'Activo',
-      tipo_contrato: existingContract?.tipo_contrato || 'Alquiler',
+      tipo_contrato: contractType,
       monto_mensual: existingContract?.monto_mensual || habitacion.precio_alquiler || 0,
       monto_garantia: existingContract?.monto_garantia || 0,
       fecha_inicio: buildContractStartDate(paymentDay, existingContract?.fecha_inicio),
@@ -318,6 +331,7 @@ export default function Inquilinos() {
       observaciones: selectedInquilino.observaciones.trim(),
       habitacion_id: selectedInquilino.habitacion_id ? Number(selectedInquilino.habitacion_id) : undefined,
       dia_pago: clampPaymentDay(selectedInquilino.dia_pago),
+      tipo_contrato: selectedInquilino.tipo_contrato || 'Alquiler',
     };
 
     if (!payload.nombre) {
@@ -330,7 +344,7 @@ export default function Inquilinos() {
 
     try {
       const savedInquilino = await saveTenant(payload);
-      await syncTenantRoom(savedInquilino, payload.habitacion_id, payload.dia_pago);
+      await syncTenantRoom(savedInquilino, payload.habitacion_id, payload.dia_pago, payload.tipo_contrato);
 
       setInquilinos((current) => {
         if (isCreating) {
@@ -516,6 +530,11 @@ export default function Inquilinos() {
                       Dia de pago: {getPaymentDayFromContract(activeContract)}
                     </p>
                   )}
+                  {activeContract && (
+                    <p className="flex items-center gap-1.5">
+                      Tipo: {getContractType(activeContract)}
+                    </p>
+                  )}
                 </div>
                 <span className={`inline-block mt-3 px-2 py-1 rounded-full text-xs font-medium transition-colors ${inquilino.activo ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
                   {inquilino.activo ? 'Activo' : 'Inactivo'}
@@ -626,6 +645,21 @@ export default function Inquilinos() {
                   <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
                     Este dia actualiza los vencimientos pendientes en Pagos y Dashboard.
                   </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Tipo de contrato</label>
+                  <select
+                    value={selectedInquilino.tipo_contrato}
+                    onChange={(e) => setSelectedInquilino({
+                      ...selectedInquilino,
+                      tipo_contrato: e.target.value,
+                    })}
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                  >
+                    <option value="Alquiler">Inquilino - Alquiler</option>
+                    <option value="Anticretico">Anticresista - Anticretico</option>
+                  </select>
                 </div>
 
                 <div>
