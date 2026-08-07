@@ -77,6 +77,30 @@ const buildContractStartDate = (day: number, currentStartDate?: string) => {
   return new Date(year, month, safeDay, 0, 0, 0, 0).toISOString();
 };
 
+const getRoomSortParts = (habitacion?: Habitacion) => {
+  if (!habitacion) {
+    return { hasRoom: false, number: Number.POSITIVE_INFINITY, suffix: '' };
+  }
+
+  const numericPart = habitacion.numero.match(/\d+/)?.[0];
+  const parsedNumber = numericPart ? Number(numericPart) : Number.POSITIVE_INFINITY;
+
+  return {
+    hasRoom: true,
+    number: Number.isFinite(parsedNumber) ? parsedNumber : Number.POSITIVE_INFINITY,
+    suffix: `${habitacion.numero} ${habitacion.bloque || ''}`.trim().toLowerCase(),
+  };
+};
+
+const compareRooms = (roomA?: Habitacion, roomB?: Habitacion) => {
+  const a = getRoomSortParts(roomA);
+  const b = getRoomSortParts(roomB);
+
+  if (a.hasRoom !== b.hasRoom) return a.hasRoom ? -1 : 1;
+  if (a.number !== b.number) return a.number - b.number;
+  return a.suffix.localeCompare(b.suffix);
+};
+
 export default function Inquilinos() {
   const [inquilinos, setInquilinos] = useState<Inquilino[]>([]);
   const [habitaciones, setHabitaciones] = useState<Habitacion[]>([]);
@@ -121,8 +145,9 @@ export default function Inquilinos() {
       .map((habitacion) => ({
         value: String(habitacion.id),
         label: getRoomLabelFromData(habitacion),
+        habitacion,
       }))
-      .sort((a, b) => a.label.localeCompare(b.label));
+      .sort((a, b) => compareRooms(a.habitacion, b.habitacion));
   }, [habitaciones]);
 
   const loadData = () => {
@@ -406,7 +431,7 @@ export default function Inquilinos() {
         case 'dia_pago':
           return dayA - dayB || a.nombre.localeCompare(b.nombre);
         case 'cuarto':
-          return getRoomLabel(roomA).localeCompare(getRoomLabel(roomB)) || a.nombre.localeCompare(b.nombre);
+          return compareRooms(habitacionById.get(Number(roomA)), habitacionById.get(Number(roomB))) || a.nombre.localeCompare(b.nombre);
         case 'estado':
           return Number(b.activo) - Number(a.activo) || a.nombre.localeCompare(b.nombre);
         case 'reciente':
