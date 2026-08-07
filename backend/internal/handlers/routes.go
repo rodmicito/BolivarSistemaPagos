@@ -307,6 +307,49 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 	})
 
 	// === PAGOS ===
+	api.POST("/pagos/generar", func(c *gin.Context) {
+		var req struct {
+			Anio         int    `json:"anio"`
+			TipoContrato string `json:"tipo_contrato"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		if req.Anio <= 0 {
+			req.Anio = time.Now().Year()
+		}
+
+		query := db.Where("estado = ?", "Activo")
+		if req.TipoContrato != "" && req.TipoContrato != "Todos" {
+			query = query.Where("tipo_contrato = ?", req.TipoContrato)
+		}
+
+		var contratos []models.Contrato
+		if err := query.Find(&contratos).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load active contracts"})
+			return
+		}
+
+		for _, contrato := range contratos {
+			if err := services.CrearPagosMensualesDelAnio(db, contrato, req.Anio); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate payments"})
+				return
+			}
+			if err := services.ActualizarVencimientosPagosNoCobrados(db, contrato); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to sync payment amounts"})
+				return
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"message":              "Pagos generados correctamente",
+			"contratos_procesados": len(contratos),
+			"anio":                 req.Anio,
+		})
+	})
+
 	api.GET("/pagos", func(c *gin.Context) {
 		var pagos []models.PagoMensual
 		db.Preload("Contrato.Habitacion").Preload("Contrato.Inquilino").Find(&pagos)
