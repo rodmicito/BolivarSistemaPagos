@@ -119,6 +119,19 @@ func ActualizarVencimientosPagosNoCobrados(db *gorm.DB, contrato models.Contrato
 	}
 
 	for i := range pagos {
+		montoAlquiler := contrato.MontoMensual
+		if contrato.TipoContrato == "Anticretico" {
+			montoAlquiler = 0
+		}
+		montoInternet := 0.0
+		if contrato.IncluyeInternet {
+			montoInternet = contrato.MontoInternet
+		}
+
+		pagos[i].MontoAlquiler = montoAlquiler
+		pagos[i].MontoServicios = contrato.MontoServicios
+		pagos[i].MontoInternet = montoInternet
+		pagos[i].MontoTotal = montoAlquiler + contrato.MontoServicios + montoInternet
 		pagos[i].FechaVencimiento = CalcularFechaVencimiento(contrato.FechaInicio, pagos[i].Mes, pagos[i].Anio)
 		pagos[i].EstadoPago = DeterminarEstadoPago(pagos[i].EstadoPago, pagos[i].FechaVencimiento, pagos[i].MontoTotal, pagos[i].MontoPagado)
 		if err := db.Save(&pagos[i]).Error; err != nil {

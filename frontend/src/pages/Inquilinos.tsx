@@ -36,6 +36,7 @@ interface InquilinoFormState extends Inquilino {
   habitacion_id?: number;
   dia_pago: number;
   tipo_contrato: string;
+  monto_mensual: number;
 }
 
 const emptyInquilino: InquilinoFormState = {
@@ -48,6 +49,7 @@ const emptyInquilino: InquilinoFormState = {
   habitacion_id: undefined,
   dia_pago: new Date().getDate(),
   tipo_contrato: 'Alquiler',
+  monto_mensual: 0,
 };
 
 const clampPaymentDay = (value: number) => {
@@ -64,6 +66,14 @@ const getPaymentDayFromContract = (contrato?: Contrato) => {
 
 const getContractType = (contrato?: Contrato) => {
   return contrato?.tipo_contrato || 'Alquiler';
+};
+
+const formatBolivianos = (value?: number) => {
+  return `Bs. ${(value || 0).toFixed(2)}`;
+};
+
+const getContractAmount = (contrato?: Contrato, habitacion?: Habitacion) => {
+  return contrato?.monto_mensual || habitacion?.precio_alquiler || 0;
 };
 
 const buildContractStartDate = (day: number, currentStartDate?: string) => {
@@ -232,6 +242,7 @@ export default function Inquilinos() {
       habitacion_id: activeContract?.habitacion_id ? Number(activeContract.habitacion_id) : undefined,
       dia_pago: getPaymentDayFromContract(activeContract),
       tipo_contrato: getContractType(activeContract),
+      monto_mensual: getContractAmount(activeContract, activeContract?.habitacion_id ? habitacionById.get(Number(activeContract.habitacion_id)) : undefined),
     });
     setIsModalOpen(true);
     setError(null);
@@ -276,14 +287,21 @@ export default function Inquilinos() {
     savedInquilino: Inquilino,
     nextRoomId: number | undefined,
     paymentDay: number,
-    contractType: string
+    contractType: string,
+    monthlyAmount: number
   ) => {
     const existingContract = activeContractByTenantId.get(Number(savedInquilino.id));
     const currentRoomId = existingContract?.habitacion_id ? Number(existingContract.habitacion_id) : undefined;
     const currentPaymentDay = getPaymentDayFromContract(existingContract);
     const currentContractType = getContractType(existingContract);
+    const currentMonthlyAmount = existingContract?.monto_mensual || 0;
 
-    if (currentRoomId === nextRoomId && currentPaymentDay === paymentDay && currentContractType === contractType) {
+    if (
+      currentRoomId === nextRoomId &&
+      currentPaymentDay === paymentDay &&
+      currentContractType === contractType &&
+      currentMonthlyAmount === monthlyAmount
+    ) {
       return;
     }
 
@@ -299,7 +317,7 @@ export default function Inquilinos() {
           inquilino_nombre: savedInquilino.nombre,
           estado: 'Inactivo',
           tipo_contrato: contractType,
-          monto_mensual: existingContract.monto_mensual || 0,
+          monto_mensual: monthlyAmount,
           monto_garantia: existingContract.monto_garantia || 0,
           fecha_inicio: buildContractStartDate(paymentDay, existingContract.fecha_inicio),
         }),
@@ -326,7 +344,7 @@ export default function Inquilinos() {
       inquilino_nombre: savedInquilino.nombre,
       estado: 'Activo',
       tipo_contrato: contractType,
-      monto_mensual: existingContract?.monto_mensual || habitacion.precio_alquiler || 0,
+      monto_mensual: monthlyAmount,
       monto_garantia: existingContract?.monto_garantia || 0,
       fecha_inicio: buildContractStartDate(paymentDay, existingContract?.fecha_inicio),
     };
@@ -357,6 +375,7 @@ export default function Inquilinos() {
       habitacion_id: selectedInquilino.habitacion_id ? Number(selectedInquilino.habitacion_id) : undefined,
       dia_pago: clampPaymentDay(selectedInquilino.dia_pago),
       tipo_contrato: selectedInquilino.tipo_contrato || 'Alquiler',
+      monto_mensual: Math.max(Number(selectedInquilino.monto_mensual) || 0, 0),
     };
 
     if (!payload.nombre) {
@@ -369,7 +388,7 @@ export default function Inquilinos() {
 
     try {
       const savedInquilino = await saveTenant(payload);
-      await syncTenantRoom(savedInquilino, payload.habitacion_id, payload.dia_pago, payload.tipo_contrato);
+      await syncTenantRoom(savedInquilino, payload.habitacion_id, payload.dia_pago, payload.tipo_contrato, payload.monto_mensual);
 
       setInquilinos((current) => {
         if (isCreating) {
@@ -397,6 +416,7 @@ export default function Inquilinos() {
       const activeRoomId = activeContract?.habitacion_id ? Number(activeContract.habitacion_id) : undefined;
       const roomLabel = getRoomLabel(activeRoomId).toLowerCase();
       const paymentDay = activeContract ? getPaymentDayFromContract(activeContract) : null;
+      const monthlyAmount = activeContract?.monto_mensual || 0;
 
       const matchesSearch =
         normalizedSearch === '' ||
@@ -404,7 +424,8 @@ export default function Inquilinos() {
         inquilino.telefono.toLowerCase().includes(normalizedSearch) ||
         inquilino.documento.toLowerCase().includes(normalizedSearch) ||
         roomLabel.includes(normalizedSearch) ||
-        (paymentDay !== null && String(paymentDay).includes(normalizedSearch));
+        (paymentDay !== null && String(paymentDay).includes(normalizedSearch)) ||
+        String(monthlyAmount).includes(normalizedSearch);
 
       const matchesStatus =
         statusFilter === 'Todos' ||
@@ -560,6 +581,11 @@ export default function Inquilinos() {
                       Tipo: {getContractType(activeContract)}
                     </p>
                   )}
+                  {activeContract && (
+                    <p className="flex items-center gap-1.5 font-semibold text-slate-600 dark:text-slate-300">
+                      Monto: {formatBolivianos(activeContract.monto_mensual)}
+                    </p>
+                  )}
                 </div>
                 <span className={`inline-block mt-3 px-2 py-1 rounded-full text-xs font-medium transition-colors ${inquilino.activo ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300'}`}>
                   {inquilino.activo ? 'Activo' : 'Inactivo'}
@@ -636,10 +662,16 @@ export default function Inquilinos() {
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Cuarto asignado</label>
                   <select
                     value={selectedInquilino.habitacion_id || ''}
-                    onChange={(e) => setSelectedInquilino({
-                      ...selectedInquilino,
-                      habitacion_id: e.target.value ? Number(e.target.value) : undefined,
-                    })}
+                    onChange={(e) => {
+                      const nextRoomId = e.target.value ? Number(e.target.value) : undefined;
+                      const nextRoom = nextRoomId ? habitacionById.get(nextRoomId) : undefined;
+
+                      setSelectedInquilino({
+                        ...selectedInquilino,
+                        habitacion_id: nextRoomId,
+                        monto_mensual: selectedInquilino.monto_mensual || nextRoom?.precio_alquiler || 0,
+                      });
+                    }}
                     className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                   >
                     <option value="">Sin cuarto asignado</option>
@@ -651,6 +683,24 @@ export default function Inquilinos() {
                   </select>
                   <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
                     El cuarto se guarda usando el contrato activo del inquilino.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Monto mensual vinculado</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={selectedInquilino.monto_mensual}
+                    onChange={(e) => setSelectedInquilino({
+                      ...selectedInquilino,
+                      monto_mensual: Math.max(Number(e.target.value) || 0, 0),
+                    })}
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                  />
+                  <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                    Este monto se guarda en el contrato activo y se usa para generar/cobrar pagos del cuarto.
                   </p>
                 </div>
 

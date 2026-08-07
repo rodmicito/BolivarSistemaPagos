@@ -78,8 +78,10 @@ func TestActualizarVencimientosPagosNoCobradosSkipsPaidPayments(t *testing.T) {
 	}
 
 	contrato := models.Contrato{
-		ID:          20,
-		FechaInicio: time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
+		ID:           20,
+		TipoContrato: "Alquiler",
+		MontoMensual: 750,
+		FechaInicio:  time.Date(2026, 1, 10, 0, 0, 0, 0, time.UTC),
 	}
 
 	pagadoVencimiento := time.Date(2026, 2, 5, 0, 0, 0, 0, time.UTC)
@@ -101,6 +103,9 @@ func TestActualizarVencimientosPagosNoCobradosSkipsPaidPayments(t *testing.T) {
 	}
 	if pendiente.FechaVencimiento.Day() != 10 {
 		t.Fatalf("expected pending due day 10, got %d", pendiente.FechaVencimiento.Day())
+	}
+	if pendiente.MontoTotal != 750 {
+		t.Fatalf("expected pending total 750, got %.2f", pendiente.MontoTotal)
 	}
 
 	var pagado models.PagoMensual
