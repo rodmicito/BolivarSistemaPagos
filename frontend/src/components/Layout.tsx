@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, Users, FileText, CreditCard, LogOut, Activity, Sun, Moon, Menu, ChevronLeft, ChevronRight, X, Cpu } from 'lucide-react';
+import { Home, Users, FileText, CreditCard, LogOut, Activity, Sun, Moon, Menu, ChevronLeft, ChevronRight, X, Cpu, DatabaseBackup } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
@@ -137,6 +137,16 @@ export default function Layout({ children }: LayoutProps) {
               </NavLink>
             </li>
             <li className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/80">
+              <NavLink
+                to="/backups"
+                className={({isActive}) => `flex items-center ${isSidebarCollapsed ? 'md:justify-center md:px-0' : 'gap-4 px-4'} py-3 rounded-lg transition-all duration-255 font-medium ${isActive ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white'}`}
+                onClick={() => setIsSidebarOpen(false)}
+              >
+                <DatabaseBackup size={22} className="flex-shrink-0" />
+                <span className={`text-[15px] truncate transition-all duration-200 ${isSidebarCollapsed ? 'md:hidden' : 'block'}`}>Backups</span>
+              </NavLink>
+            </li>
+            <li>
               <button className={`flex items-center ${isSidebarCollapsed ? 'md:justify-center md:px-0' : 'gap-4 px-4'} py-3 w-full text-left rounded-lg transition-all duration-200 font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-900 hover:text-slate-900 dark:hover:text-white`}>
                 <LogOut size={22} className="flex-shrink-0" />
                 <span className={`text-[15px] truncate transition-all duration-200 ${isSidebarCollapsed ? 'md:hidden' : 'block'}`}>Cerrar sesión</span>

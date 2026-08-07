@@ -112,3 +112,17 @@ type TelemetryLog struct {
 	RelayState    string    `json:"relay_state"`
 	RelayCmd      string    `json:"relay_cmd"`
 }
+
+type BackupSetting struct {
+	ID              uint       `json:"id" gorm:"primaryKey"`
+	Enabled         bool       `json:"enabled"`
+	IntervalMinutes int        `json:"interval_minutes"`
+	RetentionCount  int        `json:"retention_count"`
+	BackupDir       string     `json:"backup_dir"`
+	LastRunAt       *time.Time `json:"last_run_at"`
+	LastBackupFile  string     `json:"last_backup_file"`
+	LastBackupSize  int64      `json:"last_backup_size"`
+	LastBackupError string     `json:"last_backup_error"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}

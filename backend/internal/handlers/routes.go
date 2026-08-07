@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -500,5 +501,49 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		}
 
 		c.JSON(http.StatusOK, logs)
+	})
+
+	// === BACKUPS ===
+	api.GET("/backups/status", func(c *gin.Context) {
+		status, err := services.GetBackupService().GetStatus()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, status)
+	})
+
+	api.POST("/backups/settings", func(c *gin.Context) {
+		var req models.BackupSetting
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		settings, err := services.GetBackupService().UpdateSettings(req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, settings)
+	})
+
+	api.POST("/backups/run", func(c *gin.Context) {
+		backup, err := services.GetBackupService().CreateBackup("manual")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, backup)
+	})
+
+	api.GET("/backups/download/:name", func(c *gin.Context) {
+		name := c.Param("name")
+		path, err := services.GetBackupService().ResolveBackupPath(name)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Backup not found"})
+			return
+		}
+		c.FileAttachment(path, filepath.Base(path))
 	})
 }

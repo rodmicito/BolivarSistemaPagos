@@ -7,12 +7,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gin-contrib/cors"
-	"github.com/gin-gonic/gin"
 	"github.com/erick/pagosbolivar/internal/database"
 	"github.com/erick/pagosbolivar/internal/handlers"
 	"github.com/erick/pagosbolivar/internal/models"
 	"github.com/erick/pagosbolivar/internal/services"
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -63,13 +63,13 @@ func main() {
 	if errCount := db.Model(&models.Habitacion{}).Count(&count).Error; errCount == nil && count == 0 {
 		if _, errDefault := os.Stat("pagos_default.db"); errDefault == nil {
 			log.Println("Database has 0 rooms. Restoring default database from pagos_default.db...")
-			
+
 			// Close GORM connection to release file lock on SQLite database
 			sqlDB, errSql := db.DB()
 			if errSql == nil {
 				sqlDB.Close()
 			}
-			
+
 			// Copy pagos_default.db over dbPath
 			src, errSrc := os.Open("pagos_default.db")
 			if errSrc == nil {
@@ -88,7 +88,7 @@ func main() {
 			} else {
 				log.Printf("Failed to open source default database: %v", errSrc)
 			}
-			
+
 			// Reconnect to the newly copied database
 			db, err = database.InitDB(dbPath)
 			if err != nil {
@@ -99,11 +99,11 @@ func main() {
 
 	// Initialize GORM connection inside automation service and load settings
 	services.GetAutomationService().SetDB(db)
+	services.GetBackupService().SetDB(db, dbPath)
 
 	// Start the background MQTT Automation service
 	automationStatus := services.GetAutomationService().GetStatus()
 	services.GetAutomationService().Start(automationStatus.Settings.Broker)
-
 
 	// Create Gin router
 	r := gin.Default()
