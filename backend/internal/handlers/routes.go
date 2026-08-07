@@ -351,6 +351,56 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		})
 	})
 
+	api.POST("/pagos/registrar", func(c *gin.Context) {
+		var req struct {
+			ContratoID  uint    `json:"contrato_id"`
+			Anio        int     `json:"anio"`
+			Mes         int     `json:"mes"`
+			MontoPagado float64 `json:"monto_pagado"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		if req.ContratoID == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Debe seleccionar un inquilino activo"})
+			return
+		}
+		if req.Anio <= 0 {
+			req.Anio = time.Now().Year()
+		}
+		if req.Mes < 1 || req.Mes > 12 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Debe seleccionar un mes valido"})
+			return
+		}
+		if req.MontoPagado < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "El monto pagado no puede ser negativo"})
+			return
+		}
+
+		var contrato models.Contrato
+		if err := db.Preload("Habitacion").Preload("Inquilino").
+			Where("id = ? AND estado = ?", req.ContratoID, "Activo").
+			First(&contrato).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Contrato activo no encontrado"})
+			return
+		}
+
+		pago, err := services.CrearOPagarMes(db, contrato, req.Anio, req.Mes, req.MontoPagado)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo registrar el pago"})
+			return
+		}
+
+		if err := db.Preload("Contrato.Habitacion").Preload("Contrato.Inquilino").First(&pago, pago.ID).Error; err != nil {
+			c.JSON(http.StatusOK, pago)
+			return
+		}
+		services.SyncContratoInquilinoNombre(&pago.Contrato)
+		c.JSON(http.StatusOK, pago)
+	})
+
 	api.GET("/pagos", func(c *gin.Context) {
 		var pagos []models.PagoMensual
 		db.Preload("Contrato.Habitacion").Preload("Contrato.Inquilino").Find(&pagos)

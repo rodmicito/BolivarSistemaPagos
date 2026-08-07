@@ -108,6 +108,61 @@ func CrearPagosMensualesDelAnio(db *gorm.DB, contrato models.Contrato, anio int)
 	return nil
 }
 
+func CrearOPagarMes(db *gorm.DB, contrato models.Contrato, anio int, mes int, montoPagado float64) (models.PagoMensual, error) {
+	montoAlquiler := contrato.MontoMensual
+	if contrato.TipoContrato == "Anticretico" {
+		montoAlquiler = 0
+	}
+
+	montoServicios := contrato.MontoServicios
+	montoInternet := 0.0
+	if contrato.IncluyeInternet {
+		montoInternet = contrato.MontoInternet
+	}
+
+	montoTotal := montoAlquiler + montoServicios + montoInternet
+	fechaVenc := CalcularFechaVencimiento(contrato.FechaInicio, mes, anio)
+	pago := models.PagoMensual{
+		ContratoID:       contrato.ID,
+		Anio:             anio,
+		Mes:              mes,
+		MontoAlquiler:    montoAlquiler,
+		MontoServicios:   montoServicios,
+		MontoInternet:    montoInternet,
+		MontoTotal:       montoTotal,
+		MontoPagado:      0,
+		FechaVencimiento: fechaVenc,
+		EstadoPago:       "Pendiente",
+	}
+
+	if err := db.Where(
+		"contrato_id = ? AND anio = ? AND mes = ?",
+		contrato.ID,
+		anio,
+		mes,
+	).FirstOrCreate(&pago).Error; err != nil {
+		return pago, err
+	}
+
+	pago.MontoAlquiler = montoAlquiler
+	pago.MontoServicios = montoServicios
+	pago.MontoInternet = montoInternet
+	pago.MontoTotal = montoTotal
+	pago.FechaVencimiento = fechaVenc
+	pago.MontoPagado = montoPagado
+	if montoPagado > 0 {
+		now := time.Now()
+		pago.FechaPago = &now
+	}
+	pago.EstadoPago = DeterminarEstadoPago("Pendiente", pago.FechaVencimiento, pago.MontoTotal, pago.MontoPagado)
+
+	if err := db.Save(&pago).Error; err != nil {
+		return pago, err
+	}
+
+	return pago, nil
+}
+
 func ActualizarVencimientosPagosNoCobrados(db *gorm.DB, contrato models.Contrato) error {
 	var pagos []models.PagoMensual
 	if err := db.Where(

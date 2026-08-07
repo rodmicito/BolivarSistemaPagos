@@ -28,6 +28,21 @@ interface Pago {
   };
 }
 
+interface Contrato {
+  id: number;
+  estado: string;
+  tipo_contrato: string;
+  monto_mensual: number;
+  monto_servicios: number;
+  incluye_internet: boolean;
+  monto_internet: number;
+  inquilino_nombre: string;
+  habitacion: {
+    numero: string;
+    bloque: string;
+  };
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState<Stats>({
     total_habitaciones: 0,
@@ -42,16 +57,25 @@ export default function Dashboard() {
   const [selectedContractType, setSelectedContractType] = useState('Todos');
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [contratos, setContratos] = useState<Contrato[]>([]);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({
+    contrato_id: '',
+    mes: String(new Date().getMonth() + 1),
+    monto_pagado: '',
+  });
 
   const loadData = () => {
     setLoading(true);
     Promise.all([
       fetch('/api/dashboard/stats').then((res) => res.json()),
       fetch('/api/pagos').then((res) => res.json()),
+      fetch('/api/contratos').then((res) => res.json()),
     ])
-      .then(([statsData, pagosData]) => {
+      .then(([statsData, pagosData, contratosData]) => {
         setStats(statsData);
         setPagos(pagosData || []);
+        setContratos(contratosData || []);
         setLoading(false);
       })
       .catch((err) => {
@@ -65,29 +89,60 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  const handleGeneratePayments = () => {
+  const getContratoMontoTotal = (contrato: Contrato) => (
+    (contrato.tipo_contrato === 'Anticretico' ? 0 : Number(contrato.monto_mensual || 0)) +
+    Number(contrato.monto_servicios || 0) +
+    (contrato.incluye_internet ? Number(contrato.monto_internet || 0) : 0)
+  );
+
+  const activeContracts = contratos
+    .filter((contrato) => {
+      const matchesActive = contrato.estado === 'Activo';
+      const matchesType = selectedContractType === 'Todos' || contrato.tipo_contrato === selectedContractType;
+      return matchesActive && matchesType;
+    })
+    .sort((a, b) => a.inquilino_nombre.localeCompare(b.inquilino_nombre));
+
+  const selectedContrato = activeContracts.find((contrato) => String(contrato.id) === paymentForm.contrato_id);
+  const selectedMontoTotal = selectedContrato ? getContratoMontoTotal(selectedContrato) : 0;
+
+  const openPaymentForm = () => {
+    const firstContrato = activeContracts[0];
+    setPaymentForm({
+      contrato_id: firstContrato ? String(firstContrato.id) : '',
+      mes: String(new Date().getMonth() + 1),
+      monto_pagado: firstContrato ? String(getContratoMontoTotal(firstContrato)) : '',
+    });
+    setShowPaymentForm(true);
+    setMessage(null);
+  };
+
+  const handleRegisterPayment = () => {
     setGenerating(true);
     setMessage(null);
 
-    fetch('/api/pagos/generar', {
+    fetch('/api/pagos/registrar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        contrato_id: Number(paymentForm.contrato_id),
         anio: Number(selectedYear),
-        tipo_contrato: selectedContractType,
+        mes: Number(paymentForm.mes),
+        monto_pagado: Number(paymentForm.monto_pagado || 0),
       }),
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(data.error || 'No se pudieron generar los pagos');
+          throw new Error(data.error || 'No se pudo registrar el pago');
         }
-        setMessage(`Pagos generados para ${data.contratos_procesados || 0} contrato(s).`);
+        setShowPaymentForm(false);
+        setMessage('Pago registrado correctamente.');
         loadData();
       })
       .catch((err) => {
         console.error(err);
-        setMessage(err instanceof Error ? err.message : 'No se pudieron generar los pagos');
+        setMessage(err instanceof Error ? err.message : 'No se pudo registrar el pago');
       })
       .finally(() => setGenerating(false));
   };
@@ -215,14 +270,116 @@ export default function Dashboard() {
             Filtrar
           </button>
           <button
-            onClick={handleGeneratePayments}
+            onClick={openPaymentForm}
             disabled={generating}
             className="bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
           >
-            {generating ? 'Generando...' : '+ Generar Pagos'}
+            + Generar Pago
           </button>
         </div>
       </div>
+
+      {showPaymentForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-white">Registrar pago mensual</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  Selecciona el inquilino activo, el mes y el monto recibido.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowPaymentForm(false)}
+                className="rounded-lg px-3 py-1 text-slate-300 hover:bg-slate-800 hover:text-white"
+              >
+                X
+              </button>
+            </div>
+
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-200">Inquilino activo</label>
+                <select
+                  value={paymentForm.contrato_id}
+                  onChange={(e) => {
+                    const nextContrato = activeContracts.find((contrato) => String(contrato.id) === e.target.value);
+                    setPaymentForm((prev) => ({
+                      ...prev,
+                      contrato_id: e.target.value,
+                      monto_pagado: nextContrato ? String(getContratoMontoTotal(nextContrato)) : '',
+                    }));
+                  }}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-indigo-500"
+                >
+                  {activeContracts.length === 0 ? (
+                    <option value="">No hay contratos activos</option>
+                  ) : (
+                    activeContracts.map((contrato) => (
+                      <option key={contrato.id} value={contrato.id}>
+                        {contrato.inquilino_nombre} - Cuarto {contrato.habitacion?.numero}
+                        {contrato.habitacion?.bloque ? ` - ${contrato.habitacion.bloque}` : ''}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Mes a pagar</label>
+                  <select
+                    value={paymentForm.mes}
+                    onChange={(e) => setPaymentForm((prev) => ({ ...prev, mes: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-indigo-500"
+                  >
+                    {mesesNombres.map((mes, index) => (
+                      <option key={mes} value={index + 1}>
+                        {mes}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Monto pagado</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={paymentForm.monto_pagado}
+                    onChange={(e) => setPaymentForm((prev) => ({ ...prev, monto_pagado: e.target.value }))}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-indigo-500"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              {selectedContrato && (
+                <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100">
+                  Monto esperado por este cuarto: <strong>Bs. {selectedMontoTotal.toFixed(2)}</strong>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setShowPaymentForm(false)}
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRegisterPayment}
+                disabled={generating || !paymentForm.contrato_id}
+                className="rounded-xl bg-emerald-500 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {generating ? 'Guardando...' : 'Registrar pago'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {message && (
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
