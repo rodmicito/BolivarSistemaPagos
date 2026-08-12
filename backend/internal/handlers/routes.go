@@ -196,6 +196,9 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		ct.Estado = updateData.Estado
 		ct.TipoContrato = updateData.TipoContrato
 		ct.MontoMensual = updateData.MontoMensual
+		ct.MontoServicios = updateData.MontoServicios
+		ct.IncluyeInternet = updateData.IncluyeInternet
+		ct.MontoInternet = updateData.MontoInternet
 		ct.MontoGarantia = updateData.MontoGarantia
 		if !updateData.FechaInicio.IsZero() {
 			ct.FechaInicio = updateData.FechaInicio
