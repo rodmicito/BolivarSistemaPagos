@@ -40,6 +40,7 @@ interface InquilinoFormState extends Inquilino {
   dia_pago: number;
   tipo_contrato: string;
   monto_mensual: number;
+  monto_garantia: number;
   extra_pago_tipo: string;
   monto_extra: number;
 }
@@ -55,6 +56,7 @@ const emptyInquilino: InquilinoFormState = {
   dia_pago: new Date().getDate(),
   tipo_contrato: 'Alquiler',
   monto_mensual: 0,
+  monto_garantia: 0,
   extra_pago_tipo: 'Internet',
   monto_extra: 0,
 };
@@ -77,12 +79,18 @@ const getContractType = (contrato?: Contrato) => {
 
 const getExtraPaymentType = (contrato?: Contrato) => {
   if (contrato?.incluye_internet) return 'Internet';
+  if ((contrato?.monto_servicios || 0) > 0) return 'Garaje';
   return 'Ninguno';
 };
 
 const getExtraPaymentAmount = (contrato?: Contrato) => {
-  if (contrato?.incluye_internet) return contrato.monto_internet || 0;
+  if (contrato?.incluye_internet) return contrato?.monto_internet || 0;
+  if ((contrato?.monto_servicios || 0) > 0) return contrato?.monto_servicios || 0;
   return 0;
+};
+
+const getGuaranteeAmount = (contrato?: Contrato) => {
+  return contrato?.monto_garantia || 0;
 };
 
 const formatBolivianos = (value?: number) => {
@@ -260,6 +268,7 @@ export default function Inquilinos() {
       dia_pago: getPaymentDayFromContract(activeContract),
       tipo_contrato: getContractType(activeContract),
       monto_mensual: getContractAmount(activeContract, activeContract?.habitacion_id ? habitacionById.get(Number(activeContract.habitacion_id)) : undefined),
+      monto_garantia: getGuaranteeAmount(activeContract),
       extra_pago_tipo: getExtraPaymentType(activeContract),
       monto_extra: getExtraPaymentAmount(activeContract),
     });
@@ -308,6 +317,7 @@ export default function Inquilinos() {
     paymentDay: number,
     contractType: string,
     monthlyAmount: number,
+    guaranteeAmount: number,
     extraPaymentType: string,
     extraPaymentAmount: number
   ) => {
@@ -316,6 +326,7 @@ export default function Inquilinos() {
     const currentPaymentDay = getPaymentDayFromContract(existingContract);
     const currentContractType = getContractType(existingContract);
     const currentMonthlyAmount = existingContract?.monto_mensual || 0;
+    const currentGuaranteeAmount = getGuaranteeAmount(existingContract);
     const currentExtraType = getExtraPaymentType(existingContract);
     const currentExtraAmount = getExtraPaymentAmount(existingContract);
 
@@ -324,6 +335,7 @@ export default function Inquilinos() {
       currentPaymentDay === paymentDay &&
       currentContractType === contractType &&
       currentMonthlyAmount === monthlyAmount &&
+      currentGuaranteeAmount === guaranteeAmount &&
       currentExtraType === extraPaymentType &&
       currentExtraAmount === extraPaymentAmount
     ) {
@@ -343,9 +355,10 @@ export default function Inquilinos() {
           estado: 'Inactivo',
           tipo_contrato: contractType,
           monto_mensual: monthlyAmount,
+          monto_servicios: extraPaymentType === 'Garaje' ? extraPaymentAmount : 0,
           incluye_internet: extraPaymentType === 'Internet',
           monto_internet: extraPaymentType === 'Internet' ? extraPaymentAmount : 0,
-          monto_garantia: existingContract.monto_garantia || 0,
+          monto_garantia: guaranteeAmount,
           fecha_inicio: buildContractStartDate(paymentDay, existingContract.fecha_inicio),
         }),
       });
@@ -372,9 +385,10 @@ export default function Inquilinos() {
       estado: 'Activo',
       tipo_contrato: contractType,
       monto_mensual: monthlyAmount,
+      monto_servicios: extraPaymentType === 'Garaje' ? extraPaymentAmount : 0,
       incluye_internet: extraPaymentType === 'Internet',
       monto_internet: extraPaymentType === 'Internet' ? extraPaymentAmount : 0,
-      monto_garantia: existingContract?.monto_garantia || 0,
+      monto_garantia: guaranteeAmount,
       fecha_inicio: buildContractStartDate(paymentDay, existingContract?.fecha_inicio),
     };
 
@@ -405,7 +419,8 @@ export default function Inquilinos() {
       dia_pago: clampPaymentDay(selectedInquilino.dia_pago),
       tipo_contrato: selectedInquilino.tipo_contrato || 'Alquiler',
       monto_mensual: Math.max(Number(selectedInquilino.monto_mensual) || 0, 0),
-      extra_pago_tipo: selectedInquilino.extra_pago_tipo || 'Internet',
+      monto_garantia: Math.max(Number(selectedInquilino.monto_garantia) || 0, 0),
+      extra_pago_tipo: selectedInquilino.extra_pago_tipo || 'Ninguno',
       monto_extra: Math.max(Number(selectedInquilino.monto_extra) || 0, 0),
     };
 
@@ -425,6 +440,7 @@ export default function Inquilinos() {
         payload.dia_pago,
         payload.tipo_contrato,
         payload.monto_mensual,
+        payload.monto_garantia,
         payload.extra_pago_tipo,
         payload.monto_extra
       );
@@ -625,9 +641,14 @@ export default function Inquilinos() {
                       Monto: {formatBolivianos(activeContract.monto_mensual)}
                     </p>
                   )}
-                  {activeContract?.incluye_internet && (
+                  {getExtraPaymentType(activeContract) !== 'Ninguno' && (
                     <p className="flex items-center gap-1.5">
-                      Extra: Internet {formatBolivianos(activeContract.monto_internet)}
+                      Extra: {getExtraPaymentType(activeContract)} {formatBolivianos(getExtraPaymentAmount(activeContract))}
+                    </p>
+                  )}
+                  {(activeContract?.monto_garantia || 0) > 0 && (
+                    <p className="flex items-center gap-1.5">
+                      Pago de garantia: {formatBolivianos(activeContract?.monto_garantia)}
                     </p>
                   )}
                 </div>
@@ -767,6 +788,24 @@ export default function Inquilinos() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Pago de garantia</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={selectedInquilino.monto_garantia}
+                    onChange={(e) => setSelectedInquilino({
+                      ...selectedInquilino,
+                      monto_garantia: Math.max(Number(e.target.value) || 0, 0),
+                    })}
+                    className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
+                  />
+                  <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                    Se guarda en el contrato activo para mantener el monto entregado como garantia.
+                  </p>
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Tipo de contrato</label>
                   <select
                     value={selectedInquilino.tipo_contrato}
@@ -789,16 +828,17 @@ export default function Inquilinos() {
                       onChange={(e) => setSelectedInquilino({
                         ...selectedInquilino,
                         extra_pago_tipo: e.target.value,
-                        monto_extra: e.target.value === 'Internet' ? selectedInquilino.monto_extra : 0,
+                        monto_extra: e.target.value === 'Ninguno' ? 0 : selectedInquilino.monto_extra,
                       })}
                       className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-colors"
                     >
                       <option value="Internet">Internet</option>
+                      <option value="Garaje">Garaje</option>
                       <option value="Ninguno">Sin extra</option>
                     </select>
                   </div>
 
-                  {selectedInquilino.extra_pago_tipo === 'Internet' && (
+                  {selectedInquilino.extra_pago_tipo !== 'Ninguno' && (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Monto extra</label>
                       <input
