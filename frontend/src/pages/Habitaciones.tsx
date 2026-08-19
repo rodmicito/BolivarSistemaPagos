@@ -124,6 +124,9 @@ export default function Habitaciones() {
 
   const getAssignableInquilinos = () => {
     const currentRoomId = selectedHabitacion?.id;
+    const currentContract = currentRoomId ? activeContractByRoom.get(Number(currentRoomId)) : undefined;
+    const currentTenantId = currentContract?.inquilino?.id || currentContract?.inquilino_id;
+
     const occupiedTenantIds = new Set(
       contratosActivos
         .filter(c => c.habitacion_id && Number(c.habitacion_id) !== Number(currentRoomId))
@@ -131,7 +134,9 @@ export default function Habitaciones() {
         .filter(Boolean)
     );
 
-    return inquilinosActivos.filter(inquilino => inquilino.id && !occupiedTenantIds.has(inquilino.id));
+    return inquilinosActivos.filter(inquilino =>
+      inquilino.id && (!occupiedTenantIds.has(inquilino.id) || Number(inquilino.id) === Number(currentTenantId))
+    );
   };
 
   const handleCardClick = (hab: Habitacion) => {
