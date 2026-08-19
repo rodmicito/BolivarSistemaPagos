@@ -31,6 +31,10 @@ func InitDB(dsn string) (*gorm.DB, error) {
 		log.Printf("Failed to ensure payment uniqueness: %v", err)
 		return nil, err
 	}
+	if err := deduplicateActiveContratos(db); err != nil {
+		log.Printf("Failed to deduplicate active contratos: %v", err)
+		return nil, err
+	}
 
 	log.Println("Database schema migrated.")
 
@@ -63,4 +67,40 @@ func ensurePagoMensualUniqueIndex(db *gorm.DB) error {
 	return db.Exec(
 		"CREATE UNIQUE INDEX IF NOT EXISTS idx_pago_mensual_unique_period ON " + tableName + " (contrato_id, anio, mes)",
 	).Error
+}
+
+// deduplicateActiveContratos fixes legacy data where a habitacion or inquilino
+// ended up with more than one Contrato in estado='Activo' (from before the
+// duplicate guard existed). It keeps the most recently updated one Activo and
+// marks the rest Inactivo, so occupancy checks based on a single active
+// contract per room/tenant behave correctly.
+func deduplicateActiveContratos(db *gorm.DB) error {
+	stmt := &gorm.Statement{DB: db}
+	if err := stmt.Parse(&models.Contrato{}); err != nil {
+		return err
+	}
+	tableName := stmt.Schema.Table
+
+	dedupeByColumn := func(column string) error {
+		return db.Exec(`
+			UPDATE ` + tableName + `
+			SET estado = 'Inactivo'
+			WHERE estado = 'Activo'
+			AND id NOT IN (
+				SELECT id FROM (
+					SELECT id, ROW_NUMBER() OVER (
+						PARTITION BY ` + column + `
+						ORDER BY updated_at DESC, id DESC
+					) AS rn
+					FROM ` + tableName + `
+					WHERE estado = 'Activo'
+				) ranked WHERE rn = 1
+			)
+		`).Error
+	}
+
+	if err := dedupeByColumn("habitacion_id"); err != nil {
+		return err
+	}
+	return dedupeByColumn("inquilino_id")
 }
