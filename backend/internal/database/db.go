@@ -35,6 +35,10 @@ func InitDB(dsn string) (*gorm.DB, error) {
 		log.Printf("Failed to deduplicate active contratos: %v", err)
 		return nil, err
 	}
+	if err := deactivateContractsForInactiveTenants(db); err != nil {
+		log.Printf("Failed to deactivate contracts for inactive tenants: %v", err)
+		return nil, err
+	}
 
 	log.Println("Database schema migrated.")
 
@@ -103,4 +107,27 @@ func deduplicateActiveContratos(db *gorm.DB) error {
 		return err
 	}
 	return dedupeByColumn("inquilino_id")
+}
+
+func deactivateContractsForInactiveTenants(db *gorm.DB) error {
+	contratoStmt := &gorm.Statement{DB: db}
+	if err := contratoStmt.Parse(&models.Contrato{}); err != nil {
+		return err
+	}
+	inquilinoStmt := &gorm.Statement{DB: db}
+	if err := inquilinoStmt.Parse(&models.Inquilino{}); err != nil {
+		return err
+	}
+
+	contratosTable := contratoStmt.Schema.Table
+	inquilinosTable := inquilinoStmt.Schema.Table
+
+	return db.Exec(`
+		UPDATE ` + contratosTable + `
+		SET estado = 'Inactivo'
+		WHERE estado = 'Activo'
+		AND inquilino_id IN (
+			SELECT id FROM ` + inquilinosTable + ` WHERE activo = 0
+		)
+	`).Error
 }

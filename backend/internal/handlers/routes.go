@@ -283,6 +283,15 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 			return
 		}
 
+		if !inquilino.Activo {
+			if err := db.Model(&models.Contrato{}).
+				Where("inquilino_id = ? AND estado = ?", inquilino.ID, "Activo").
+				Update("estado", "Inactivo").Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to release active room contracts"})
+				return
+			}
+		}
+
 		c.JSON(http.StatusOK, inquilino)
 	})
 
