@@ -148,6 +148,18 @@ func (s *AutomationService) LoadSettings() {
 			settings.DbLogRetentionDays = 7
 			updated = true
 		}
+		if settings.TelemetryFreshMin == 0 {
+			settings.TelemetryFreshMin = 10
+			updated = true
+		}
+		if settings.TelemetryWarnMin == 0 {
+			settings.TelemetryWarnMin = 20
+			updated = true
+		}
+		if settings.TelemetryAlertMin == 0 {
+			settings.TelemetryAlertMin = 30
+			updated = true
+		}
 		if updated {
 			s.db.Save(&settings)
 		}
@@ -389,6 +401,9 @@ func defaultAutomationSetting() models.AutomationSetting {
 		DbLogInterval:      5,
 		AutoOffDuration:    10,
 		DbLogRetentionDays: 7,
+		TelemetryFreshMin:  10,
+		TelemetryWarnMin:   20,
+		TelemetryAlertMin:  30,
 	}
 }
 

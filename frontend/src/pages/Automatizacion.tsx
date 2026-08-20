@@ -33,6 +33,9 @@ interface AutomationSetting {
   db_log_interval: number;
   auto_off_duration: number;
   db_log_retention_days: number;
+  telemetry_fresh_min: number;
+  telemetry_warn_min: number;
+  telemetry_alert_min: number;
 }
 
 interface AutomationStatus {
@@ -69,6 +72,9 @@ const DEFAULT_SETTINGS: AutomationSetting = {
   db_log_interval: 5,
   auto_off_duration: 10,
   db_log_retention_days: 7,
+  telemetry_fresh_min: 10,
+  telemetry_warn_min: 20,
+  telemetry_alert_min: 30,
 };
 
 const parsePositiveInteger = (value: string) => {
@@ -118,6 +124,7 @@ export default function Automatizacion() {
   const [chartLimit, setChartLimit] = useState<number>(50);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
+  const [telemetryAgeMs, setTelemetryAgeMs] = useState<number | null>(null);
 
   const fetchChartData = () => {
     fetch(`/api/automation/logs?limit=${chartLimit}`)
@@ -198,6 +205,25 @@ export default function Automatizacion() {
       return () => clearInterval(interval);
     }
   }, [showDbLogs]);
+
+  useEffect(() => {
+    const updateTelemetryAge = () => {
+      if (!status.last_updated) {
+        setTelemetryAgeMs(null);
+        return;
+      }
+      const parsed = new Date(status.last_updated).getTime();
+      if (Number.isNaN(parsed)) {
+        setTelemetryAgeMs(null);
+        return;
+      }
+      setTelemetryAgeMs(Date.now() - parsed);
+    };
+
+    updateTelemetryAge();
+    const timer = setInterval(updateTelemetryAge, 1000);
+    return () => clearInterval(timer);
+  }, [status.last_updated]);
 
   // Live countdown timer calculation for scheduler and auto-off timer
   useEffect(() => {
@@ -422,11 +448,18 @@ export default function Automatizacion() {
 
   const handleSaveDbConfig = (interval: number, retentionDays: number) => {
     if (!status.settings) return;
+    const freshMin = Math.max(Number(settings.telemetry_fresh_min) || 1, 1);
+    const warnMin = Math.max(Number(settings.telemetry_warn_min) || freshMin, freshMin + 1);
+    const alertMin = Math.max(Number(settings.telemetry_alert_min) || warnMin, warnMin + 1);
+
     setLoading(true);
     const updatedSettings = {
       ...status.settings,
       db_log_interval: interval,
       db_log_retention_days: retentionDays,
+      telemetry_fresh_min: freshMin,
+      telemetry_warn_min: warnMin,
+      telemetry_alert_min: alertMin,
     };
 
     fetch('/api/automation/settings', {
@@ -444,7 +477,7 @@ export default function Automatizacion() {
           setSettings(data.settings);
         }
         setLoading(false);
-        setSuccessMsg('Configuración de base de datos guardada con éxito');
+        setSuccessMsg('Configuración de base de datos y rangos guardada con éxito');
         setTimeout(() => setSuccessMsg(null), 3000);
       })
       .catch((err) => {
@@ -524,6 +557,48 @@ export default function Automatizacion() {
   const balance = status.last_data?.balance || '0.000';
   const lm = status.last_data?.lm || '0';
   const lm2 = status.last_data?.lm2 || '0';
+  const telemetryFreshMin = settings.telemetry_fresh_min || DEFAULT_SETTINGS.telemetry_fresh_min;
+  const telemetryWarnMin = settings.telemetry_warn_min || DEFAULT_SETTINGS.telemetry_warn_min;
+  const telemetryAlertMin = settings.telemetry_alert_min || DEFAULT_SETTINGS.telemetry_alert_min;
+  const telemetryAgeMinutes = telemetryAgeMs !== null ? telemetryAgeMs / 1000 / 60 : null;
+  const lastTelemetryDate = status.last_updated ? new Date(status.last_updated) : null;
+
+  const telemetryStatus = (() => {
+    if (!lastTelemetryDate || telemetryAgeMinutes === null) {
+      return {
+        label: 'Sin lectura',
+        tone: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700',
+        dot: 'bg-slate-400',
+      };
+    }
+    if (telemetryAgeMinutes <= telemetryFreshMin) {
+      return {
+        label: 'Lectura reciente',
+        tone: 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40',
+        dot: 'bg-emerald-500',
+      };
+    }
+    if (telemetryAgeMinutes <= telemetryWarnMin) {
+      return {
+        label: 'Lectura demorada',
+        tone: 'bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900/40',
+        dot: 'bg-amber-500',
+      };
+    }
+    return {
+      label: 'Lectura crítica',
+      tone: 'bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/40',
+      dot: 'bg-rose-500',
+    };
+  })();
+
+  const telemetryElapsedLabel = (() => {
+    if (telemetryAgeMs === null) return 'Sin datos';
+    const totalSeconds = Math.max(Math.floor(telemetryAgeMs / 1000), 0);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes} min ${seconds.toString().padStart(2, '0')} s`;
+  })();
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -950,6 +1025,48 @@ export default function Automatizacion() {
               >
                 Guardar Configuración
               </button>
+
+              <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-700/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Rangos de frescura MQTT</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500">minutos desde la última lectura</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Verde</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={settings.telemetry_fresh_min}
+                      onChange={(e) => setSettings({ ...settings, telemetry_fresh_min: parseInt(e.target.value) || 1 })}
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Amarillo</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={settings.telemetry_warn_min}
+                      onChange={(e) => setSettings({ ...settings, telemetry_warn_min: parseInt(e.target.value) || 1 })}
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Rojo</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={settings.telemetry_alert_min}
+                      onChange={(e) => setSettings({ ...settings, telemetry_alert_min: parseInt(e.target.value) || 1 })}
+                      className="w-full border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                  Recomendado: verde hasta {telemetryFreshMin} min, amarillo hasta {telemetryWarnMin} min y rojo desde {telemetryAlertMin} min.
+                </p>
+              </div>
             </div>
 
             {/* Collapsible Recent Logs Visualizer */}
@@ -1159,11 +1276,24 @@ export default function Automatizacion() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[9px] text-slate-400 dark:text-slate-500 pt-1.5 border-t border-slate-50 dark:border-slate-800">
-              <span>Última actualización:</span>
-              <span className="font-semibold">
-                {status.last_updated ? new Date(status.last_updated).toLocaleTimeString() : 'Nunca'}
-              </span>
+            <div className={`pt-2 border-t border-slate-50 dark:border-slate-800 space-y-2 rounded-xl px-3 py-2 border ${telemetryStatus.tone}`}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-bold uppercase tracking-wide">Última lectura MQTT</span>
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold">
+                  <span className={`w-2 h-2 rounded-full ${telemetryStatus.dot}`} />
+                  {telemetryStatus.label}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span>Fecha y hora:</span>
+                <span className="font-semibold">
+                  {lastTelemetryDate ? lastTelemetryDate.toLocaleString() : 'Nunca'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span>Antigüedad:</span>
+                <span className="font-semibold">{telemetryElapsedLabel}</span>
+              </div>
             </div>
           </div>
         </div>

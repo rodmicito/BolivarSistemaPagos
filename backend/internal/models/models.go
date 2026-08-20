@@ -96,6 +96,9 @@ type AutomationSetting struct {
 	DbLogInterval      int    `json:"db_log_interval"`
 	AutoOffDuration    int    `json:"auto_off_duration"`
 	DbLogRetentionDays int    `json:"db_log_retention_days"`
+	TelemetryFreshMin  int    `json:"telemetry_fresh_min"`
+	TelemetryWarnMin   int    `json:"telemetry_warn_min"`
+	TelemetryAlertMin  int    `json:"telemetry_alert_min"`
 }
 
 type TelemetryLog struct {
