@@ -44,6 +44,9 @@ interface AutomationStatus {
   relay_state_time: string;
   last_data: ESP32Data | null;
   last_updated: string;
+  last_telemetry_at: string;
+  last_command_at: string;
+  last_state_at: string;
   settings: AutomationSetting | null;
   raw_json: string;
   raw_cmd: string;
@@ -93,6 +96,9 @@ export default function Automatizacion() {
     relay_state_time: '',
     last_data: null,
     last_updated: '',
+    last_telemetry_at: '',
+    last_command_at: '',
+    last_state_at: '',
     settings: null,
     raw_json: '',
     raw_cmd: '',
@@ -125,6 +131,13 @@ export default function Automatizacion() {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
   const [telemetryAgeMs, setTelemetryAgeMs] = useState<number | null>(null);
+
+  const formatMessageTimestamp = (value?: string) => {
+    if (!value) return 'Sin mensajes todavía';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'Hora no disponible';
+    return parsed.toLocaleString();
+  };
 
   const fetchChartData = () => {
     fetch(`/api/automation/logs?limit=${chartLimit}`)
@@ -1639,6 +1652,9 @@ export default function Automatizacion() {
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
               Consola de Telemetría ({status.settings?.telemetry_topic || 'nP1'})
             </span>
+            <p className="mb-1.5 text-[10px] text-slate-400 dark:text-slate-500">
+              Última lectura: <span className="font-semibold">{formatMessageTimestamp(status.last_telemetry_at)}</span>
+            </p>
             <pre className="bg-slate-950 text-emerald-400 p-3.5 rounded-xl text-[10px] font-mono overflow-x-auto h-40 border border-slate-900 shadow-inner">
               {status.raw_json ? (
                 (() => {
@@ -1660,6 +1676,9 @@ export default function Automatizacion() {
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
               Consola de Comandos ({status.settings?.relay_cmd_topic || 'nivelPrueba/cmd'})
             </span>
+            <p className="mb-1.5 text-[10px] text-slate-400 dark:text-slate-500">
+              Último comando: <span className="font-semibold">{formatMessageTimestamp(status.last_command_at)}</span>
+            </p>
             <pre className="bg-slate-950 text-amber-400 p-3.5 rounded-xl text-[10px] font-mono overflow-x-auto h-40 border border-slate-900 shadow-inner">
               {status.raw_cmd ? (
                 (() => {
@@ -1681,6 +1700,9 @@ export default function Automatizacion() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Consola de Estado ({status.settings?.relay_state_topic || 'rele/state'})
             </span>
+            <p className="mb-1.5 text-[10px] text-slate-400 dark:text-slate-500">
+              Último estado: <span className="font-semibold">{formatMessageTimestamp(status.last_state_at)}</span>
+            </p>
             <pre className="bg-slate-950 text-emerald-300 p-3.5 rounded-xl text-[10px] font-mono overflow-x-auto h-40 border border-slate-900 shadow-inner">
               {status.raw_state ? (
                 (() => {

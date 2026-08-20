@@ -32,6 +32,9 @@ type AutomationStatus struct {
 	RelayStateTime string                    `json:"relay_state_time"`
 	LastData       *ESP32Data                `json:"last_data"`
 	LastUpdated    string                    `json:"last_updated"`
+	LastTelemetryAt string                   `json:"last_telemetry_at"`
+	LastCommandAt   string                   `json:"last_command_at"`
+	LastStateAt     string                   `json:"last_state_at"`
 	Settings       *models.AutomationSetting `json:"settings"`
 	RawJSON        string                    `json:"raw_json"`
 	RawCmd         string                    `json:"raw_cmd"`
@@ -54,6 +57,9 @@ type AutomationService struct {
 	rawJSON         string
 	rawCmd          string
 	rawState        string
+	lastTelemetryAt time.Time
+	lastCommandAt   time.Time
+	lastStateAt     time.Time
 	lastDbLogTime   time.Time
 	autoOffActive   bool
 	autoOffTarget   time.Time
@@ -354,6 +360,18 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 	if !s.lastUpdated.IsZero() {
 		lastUpdatedStr = s.lastUpdated.Format(time.RFC3339)
 	}
+	var lastTelemetryAtStr string
+	if !s.lastTelemetryAt.IsZero() {
+		lastTelemetryAtStr = s.lastTelemetryAt.Format(time.RFC3339)
+	}
+	var lastCommandAtStr string
+	if !s.lastCommandAt.IsZero() {
+		lastCommandAtStr = s.lastCommandAt.Format(time.RFC3339)
+	}
+	var lastStateAtStr string
+	if !s.lastStateAt.IsZero() {
+		lastStateAtStr = s.lastStateAt.Format(time.RFC3339)
+	}
 
 	var stateTimeStr string
 	if !s.relayStateTime.IsZero() {
@@ -371,6 +389,9 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		RelayStateTime: stateTimeStr,
 		LastData:       s.lastData,
 		LastUpdated:    lastUpdatedStr,
+		LastTelemetryAt: lastTelemetryAtStr,
+		LastCommandAt:   lastCommandAtStr,
+		LastStateAt:     lastStateAtStr,
 		Settings:       s.settings,
 		RawJSON:        s.rawJSON,
 		RawCmd:         s.rawCmd,
@@ -489,7 +510,9 @@ func (s *AutomationService) handleSensorMessage(client mqtt.Client, msg mqtt.Mes
 	}
 
 	s.lastData = &data
-	s.lastUpdated = time.Now()
+	now := time.Now()
+	s.lastUpdated = now
+	s.lastTelemetryAt = now
 }
 
 func (s *AutomationService) handleStateMessage(client mqtt.Client, msg mqtt.Message) {
@@ -514,7 +537,9 @@ func (s *AutomationService) handleStateMessage(client mqtt.Client, msg mqtt.Mess
 		s.relayState = normalizedState
 		s.relayStateTime = time.Now()
 	}
-	s.lastUpdated = time.Now()
+	now := time.Now()
+	s.lastUpdated = now
+	s.lastStateAt = now
 	log.Printf("[MQTT] Relay state updated to: %s (raw: %s)\n", s.relayState, rawPayload)
 }
 
@@ -523,7 +548,9 @@ func (s *AutomationService) handleCmdMessage(client mqtt.Client, msg mqtt.Messag
 	defer s.mu.Unlock()
 
 	s.rawCmd = string(msg.Payload())
-	s.lastUpdated = time.Now()
+	now := time.Now()
+	s.lastUpdated = now
+	s.lastCommandAt = now
 	log.Printf("[MQTT] Relay command received: %s\n", s.rawCmd)
 }
 
