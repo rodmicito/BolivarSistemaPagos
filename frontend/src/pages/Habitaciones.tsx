@@ -171,8 +171,10 @@ export default function Habitaciones() {
     const activeContract = activeContractByRoom.get(Number(habitacion.id));
     const nextInquilinoId = selectedInquilinoId ? Number(selectedInquilinoId) : undefined;
     const currentInquilinoId = activeContract?.inquilino?.id || activeContract?.inquilino_id;
+    const hasActiveOccupant = Boolean(activeContract?.id);
 
-    if (currentInquilinoId === nextInquilinoId) return;
+    if (nextInquilinoId && currentInquilinoId === nextInquilinoId) return;
+    if (!nextInquilinoId && !hasActiveOccupant) return;
 
     if (!nextInquilinoId) {
       if (!activeContract?.id) return;
