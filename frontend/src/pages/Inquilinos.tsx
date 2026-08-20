@@ -313,6 +313,7 @@ export default function Inquilinos() {
 
   const syncTenantRoom = async (
     savedInquilino: Inquilino,
+    tenantActive: boolean,
     nextRoomId: number | undefined,
     paymentDay: number,
     contractType: string,
@@ -329,8 +330,10 @@ export default function Inquilinos() {
     const currentGuaranteeAmount = getGuaranteeAmount(existingContract);
     const currentExtraType = getExtraPaymentType(existingContract);
     const currentExtraAmount = getExtraPaymentAmount(existingContract);
+    const shouldReleaseRoom = !tenantActive || !nextRoomId;
 
     if (
+      tenantActive &&
       currentRoomId === nextRoomId &&
       currentPaymentDay === paymentDay &&
       currentContractType === contractType &&
@@ -342,7 +345,7 @@ export default function Inquilinos() {
       return;
     }
 
-    if (!nextRoomId) {
+    if (shouldReleaseRoom) {
       if (!existingContract?.id) return;
 
       const response = await fetch(`/api/contratos/${existingContract.id}`, {
@@ -436,6 +439,7 @@ export default function Inquilinos() {
       const savedInquilino = await saveTenant(payload);
       await syncTenantRoom(
         savedInquilino,
+        payload.activo,
         payload.habitacion_id,
         payload.dia_pago,
         payload.tipo_contrato,
