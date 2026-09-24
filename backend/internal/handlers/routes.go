@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -607,5 +608,38 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 			return
 		}
 		c.FileAttachment(path, filepath.Base(path))
+	})
+
+	api.POST("/backups/restore", func(c *gin.Context) {
+		file, err := c.FormFile("backup")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Selecciona un archivo de backup"})
+			return
+		}
+		if filepath.Ext(file.Filename) != ".db" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "El backup debe ser un archivo .db"})
+			return
+		}
+
+		tmp, err := os.CreateTemp("", "pagos-restore-*.db")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		tmpPath := tmp.Name()
+		defer os.Remove(tmpPath)
+		if err := tmp.Close(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if err := c.SaveUploadedFile(file, tmpPath); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "No se pudo guardar el archivo"})
+			return
+		}
+		if err := services.GetBackupService().RestoreBackup(tmpPath); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Backup restaurado correctamente"})
 	})
 }

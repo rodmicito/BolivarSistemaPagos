@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DatabaseBackup, Download, Play, RefreshCw, Save } from 'lucide-react';
+import { DatabaseBackup, Download, Play, RefreshCw, Save, Upload } from 'lucide-react';
 
 interface BackupSetting {
   enabled: boolean;
@@ -43,6 +43,7 @@ export default function Backups() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -117,6 +118,38 @@ export default function Backups() {
       .finally(() => setRunning(false));
   };
 
+  const restoreBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!window.confirm('Esto reemplazara todos los datos actuales. ¿Deseas continuar?')) return;
+
+    setRestoring(true);
+    setMessage(null);
+    setError(null);
+    const formData = new FormData();
+    formData.append('backup', file);
+    try {
+      const response = await fetch('/api/backups/restore', { method: 'POST', body: formData });
+      const responseText = await response.text();
+      let data: { error?: string; message?: string } = {};
+      if (responseText.trim()) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          data = { error: responseText };
+        }
+      }
+      if (!response.ok) throw new Error(data.error || `No se pudo restaurar el backup (HTTP ${response.status})`);
+      setMessage('Backup restaurado correctamente. Los datos ya están disponibles.');
+      loadStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo restaurar el backup');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -132,6 +165,11 @@ export default function Backups() {
           {running ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} />}
           {running ? 'Creando...' : 'Crear Backup Ahora'}
         </button>
+        <label className="bg-slate-700 hover:bg-slate-600 disabled:opacity-60 text-white px-5 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer">
+          {restoring ? <RefreshCw size={18} className="animate-spin" /> : <Upload size={18} />}
+          {restoring ? 'Restaurando...' : 'Restaurar Backup'}
+          <input type="file" accept=".db,application/vnd.sqlite3" onChange={restoreBackup} disabled={restoring} className="hidden" />
+        </label>
       </div>
 
       {error && (

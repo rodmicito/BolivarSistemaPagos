@@ -158,6 +158,49 @@ func (s *BackupService) ResolveBackupPath(name string) (string, error) {
 	return fullPath, nil
 }
 
+// RestoreBackup replaces the current database contents with a previously
+// exported SQLite database while keeping the existing connection alive.
+func (s *BackupService) RestoreBackup(sourcePath string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+	if _, err := os.Stat(sourcePath); err != nil {
+		return err
+	}
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("PRAGMA foreign_keys = OFF").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("ATTACH DATABASE ? AS restore_db", sourcePath).Error; err != nil {
+			return fmt.Errorf("invalid SQLite backup: %w", err)
+		}
+		defer tx.Exec("DETACH DATABASE restore_db")
+
+		var tables []string
+		if err := tx.Raw("SELECT name FROM restore_db.sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").Scan(&tables).Error; err != nil {
+			return err
+		}
+		if len(tables) == 0 {
+			return fmt.Errorf("the selected file does not contain system data")
+		}
+
+		for _, table := range tables {
+			quoted := `"` + strings.ReplaceAll(table, `"`, `""`) + `"`
+			if err := tx.Exec("DELETE FROM main." + quoted).Error; err != nil {
+				return fmt.Errorf("cannot clear table %s: %w", table, err)
+			}
+			if err := tx.Exec("INSERT INTO main." + quoted + " SELECT * FROM restore_db." + quoted).Error; err != nil {
+				return fmt.Errorf("cannot restore table %s: %w", table, err)
+			}
+		}
+		return tx.Exec("PRAGMA foreign_keys = ON").Error
+	})
+}
+
 func (s *BackupService) runLoop() {
 	ticker := time.NewTicker(1 * time.Minute)
 	for range ticker.C {
