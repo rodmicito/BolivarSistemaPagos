@@ -112,6 +112,9 @@ type TelemetryLog struct {
 	Balance       float64   `json:"balance"`
 	Lm            float64   `json:"lm"`
 	Lm2           float64   `json:"lm2"`
+	TkbajoNivel   float64   `json:"tkbajo_nivel"`
+	TkbajoDistancia float64 `json:"tkbajo_distancia"`
+	TkbajoCaudal  float64   `json:"tkbajo_caudal"`
 	RelayState    string    `json:"relay_state"`
 	RelayCmd      string    `json:"relay_cmd"`
 }

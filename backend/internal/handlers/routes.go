@@ -477,6 +477,7 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 	api.POST("/automation/command", func(c *gin.Context) {
 		var req struct {
 			Command string `json:"command"`
+			Target  string `json:"target"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -484,8 +485,14 @@ func SetupRoutes(r *gin.Engine, db *gorm.DB) {
 		}
 
 		service := services.GetAutomationService()
-		if err := service.SendCommand(req.Command); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		var sendErr error
+		if req.Target == "valvulaPrincipal" {
+			sendErr = service.SendValveCommand(req.Command)
+		} else {
+			sendErr = service.SendCommand(req.Command)
+		}
+		if sendErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": sendErr.Error()})
 			return
 		}
 

@@ -42,6 +42,8 @@ interface AutomationStatus {
   connected: boolean;
   relay_state: string;
   relay_state_time: string;
+  valve_state: string;
+  valve_state_time: string;
   last_data: ESP32Data | null;
   last_updated: string;
   last_telemetry_at: string;
@@ -51,6 +53,7 @@ interface AutomationStatus {
   raw_json: string;
   raw_cmd: string;
   raw_state: string;
+  extra_topics: Record<string, { raw: string; last_at: string }>;
   auto_off_active: boolean;
   auto_off_target: string;
 }
@@ -94,6 +97,8 @@ export default function Automatizacion() {
     connected: false,
     relay_state: 'Desconocido',
     relay_state_time: '',
+    valve_state: 'Desconocido',
+    valve_state_time: '',
     last_data: null,
     last_updated: '',
     last_telemetry_at: '',
@@ -103,6 +108,7 @@ export default function Automatizacion() {
     raw_json: '',
     raw_cmd: '',
     raw_state: '',
+    extra_topics: {},
     auto_off_active: false,
     auto_off_target: '',
   });
@@ -305,11 +311,11 @@ export default function Automatizacion() {
       });
   };
 
-  const handleCommand = (cmd: string) => {
+  const handleCommand = (cmd: string, target?: string) => {
     fetch('/api/automation/command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: cmd }),
+      body: JSON.stringify({ command: cmd, target }),
     })
       .then((res) => {
         if (!res.ok) throw new Error('Error al enviar comando');
@@ -780,6 +786,33 @@ export default function Automatizacion() {
                   {status.settings?.relay_state_topic || DEFAULT_SETTINGS.relay_state_topic}
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Main valve control card */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 relative overflow-hidden flex flex-col justify-between h-[360px]">
+            <div>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <Cpu size={20} className="text-cyan-500" />
+                Válvula Principal
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Control manual independiente de la válvula principal.</p>
+            </div>
+            <div className="flex flex-col items-center space-y-4 my-2">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg border-4 ${status.valve_state === 'ON' ? 'text-cyan-500 border-cyan-500 bg-cyan-950/30' : 'text-slate-400 border-slate-700 bg-slate-900'}`}>
+                <Power size={28} className={status.valve_state === 'ON' ? 'animate-pulse' : ''} />
+              </div>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-350">
+                Estado: {status.valve_state === 'ON' ? 'ENCENDIDA' : status.valve_state === 'OFF' ? 'APAGADA' : 'DESCONOCIDO'}
+              </span>
+              <div className="grid grid-cols-2 gap-3 w-full">
+                <button onClick={() => handleCommand('on', 'valvulaPrincipal')} className="py-2 px-4 rounded-xl font-medium text-xs bg-cyan-600 hover:bg-cyan-700 text-white">Encender</button>
+                <button onClick={() => handleCommand('off', 'valvulaPrincipal')} className="py-2 px-4 rounded-xl font-medium text-xs bg-rose-600 hover:bg-rose-700 text-white">Apagar</button>
+              </div>
+            </div>
+            <div className="border-t border-slate-100 dark:border-slate-700/80 pt-2 flex flex-col gap-1 text-[9px] text-slate-400 dark:text-slate-500">
+              <div className="flex justify-between"><span>Tópico Cmd:</span><span className="font-mono">valvulaPrincipal/cmd</span></div>
+              <div className="flex justify-between"><span>Tópico State:</span><span className="font-mono">valvulaPrincipal/state</span></div>
             </div>
           </div>
 
@@ -1340,6 +1373,9 @@ export default function Automatizacion() {
               <option value="balance">Balance de Flujo</option>
               <option value="lm">Pulsos Entrada (lm)</option>
               <option value="lm2">Pulsos Salida (lm2)</option>
+              <option value="tkbajo_nivel">tkBajo - Nivel</option>
+              <option value="tkbajo_distancia">tkBajo - Distancia</option>
+              <option value="tkbajo_caudal">tkBajo - Caudal</option>
             </select>
 
             {/* Limit Selector */}
@@ -1391,6 +1427,9 @@ export default function Automatizacion() {
               distancia: { label: 'Distancia al Sensor', unit: ' cm', color: '#f97316', gradient: ['#f97316', '#ea580c'] },
               caudal_entrada: { label: 'Caudal de Entrada', unit: ' L/min', color: '#6366f1', gradient: ['#6366f1', '#4f46e5'] },
               caudal_salida: { label: 'Caudal de Salida', unit: ' L/min', color: '#f43f5e', gradient: ['#f43f5e', '#e11d48'] },
+              tkbajo_nivel: { label: 'tkBajo - Nivel', unit: '', color: '#06b6d4', gradient: ['#06b6d4', '#0891b2'] },
+              tkbajo_distancia: { label: 'tkBajo - Distancia', unit: '', color: '#f59e0b', gradient: ['#f59e0b', '#d97706'] },
+              tkbajo_caudal: { label: 'tkBajo - Caudal', unit: ' L/min', color: '#a855f7', gradient: ['#a855f7', '#7e22ce'] },
               balance: { label: 'Balance de Flujo', unit: ' L/min', color: '#06b6d4', gradient: ['#06b6d4', '#0891b2'] },
               lm: { label: 'Pulsos Entrada (lm)', unit: '', color: '#8b5cf6', gradient: ['#8b5cf6', '#7c3aed'] },
               lm2: { label: 'Pulsos Salida (lm2)', unit: '', color: '#f59e0b', gradient: ['#f59e0b', '#d97706'] },
@@ -1639,6 +1678,28 @@ export default function Automatizacion() {
               {status.settings?.relay_state_topic || 'rele/state'}
             </span>
           </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 mb-5">
+          {['tkBajo', 'valvulaPrincipal'].map((topic) => {
+            const monitored = status.extra_topics?.[topic];
+            return (
+              <div key={topic} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/85">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-mono font-bold text-cyan-600 dark:text-cyan-400">{topic}</span>
+                  <span className={`text-[10px] font-semibold ${monitored?.last_at ? 'text-emerald-500' : 'text-slate-400'}`}>
+                    {monitored?.last_at ? 'Recibiendo' : 'Sin lecturas'}
+                  </span>
+                </div>
+                <p className="mt-2 text-[10px] text-slate-400 dark:text-slate-500">
+                  Último mensaje: <span className="font-semibold">{formatMessageTimestamp(monitored?.last_at || '')}</span>
+                </p>
+                <pre className="mt-2 bg-slate-950 text-emerald-400 p-2.5 rounded-lg text-[10px] font-mono overflow-x-auto max-h-24">
+                  {monitored?.raw || 'Esperando mensajes...'}
+                </pre>
+              </div>
+            );
+          })}
         </div>
 
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">

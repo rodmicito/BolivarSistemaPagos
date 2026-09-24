@@ -30,6 +30,8 @@ type AutomationStatus struct {
 	Connected      bool                      `json:"connected"`
 	RelayState     string                    `json:"relay_state"`
 	RelayStateTime string                    `json:"relay_state_time"`
+	ValveState     string                    `json:"valve_state"`
+	ValveStateTime string                    `json:"valve_state_time"`
 	LastData       *ESP32Data                `json:"last_data"`
 	LastUpdated    string                    `json:"last_updated"`
 	LastTelemetryAt string                   `json:"last_telemetry_at"`
@@ -39,8 +41,14 @@ type AutomationStatus struct {
 	RawJSON        string                    `json:"raw_json"`
 	RawCmd         string                    `json:"raw_cmd"`
 	RawState       string                    `json:"raw_state"`
+	ExtraTopics    map[string]TopicStatus    `json:"extra_topics"`
 	AutoOffActive  bool                      `json:"auto_off_active"`
 	AutoOffTarget  string                    `json:"auto_off_target"`
+}
+
+type TopicStatus struct {
+	Raw       string `json:"raw"`
+	LastAt    string `json:"last_at"`
 }
 
 type AutomationService struct {
@@ -50,6 +58,8 @@ type AutomationService struct {
 	connected       bool
 	relayState      string
 	relayStateTime  time.Time
+	valveState      string
+	valveStateTime  time.Time
 	lastData        *ESP32Data
 	lastUpdated     time.Time
 	brokerURL       string
@@ -57,6 +67,8 @@ type AutomationService struct {
 	rawJSON         string
 	rawCmd          string
 	rawState        string
+	extraTopics     map[string]TopicStatus
+	extraData       map[string]*ESP32Data
 	lastTelemetryAt time.Time
 	lastCommandAt   time.Time
 	lastStateAt     time.Time
@@ -81,9 +93,12 @@ func GetAutomationService() *AutomationService {
 		defaultSettings := defaultAutomationSetting()
 		GlobalAutomationService = &AutomationService{
 			relayState:     "Desconocido",
+			valveState:     "Desconocido",
 			relayStateTime: time.Now(),
 			brokerURL:      defaultSettings.Broker,
 			settings:       &defaultSettings,
+		extraTopics:    make(map[string]TopicStatus),
+			extraData:      make(map[string]*ESP32Data),
 		}
 		// Start cyclic scheduler loop in background
 		go GlobalAutomationService.runSchedulerLoop()
@@ -267,8 +282,10 @@ func (s *AutomationService) Start(broker string) {
 
 	// Local pointers to settings topics for thread safety
 	telemetryTopic := s.settings.TelemetryTopic
-	stateTopic := s.settings.RelayStateTopic
+		stateTopic := s.settings.RelayStateTopic
 	cmdTopic := s.settings.RelayCmdTopic
+	valveStateTopic := "valvulaPrincipal/state"
+		extraTopics := []string{"tkBajo", "valvulaPrincipal"}
 
 	opts.OnConnect = func(c mqtt.Client) {
 		log.Printf("[MQTT] Connected to broker: %s\n", brokerURL)
@@ -286,10 +303,21 @@ func (s *AutomationService) Start(broker string) {
 		if token := c.Subscribe(stateTopic, 1, s.handleStateMessage); token.Wait() && token.Error() != nil {
 			log.Printf("[MQTT] Error subscribing to state topic %s: %v\n", stateTopic, token.Error())
 		}
+		if token := c.Subscribe(valveStateTopic, 1, s.handleValveStateMessage); token.Wait() && token.Error() != nil {
+			log.Printf("[MQTT] Error subscribing to valve state topic %s: %v\n", valveStateTopic, token.Error())
+		}
 
 		// Subscribe to command topic to monitor commands
 		if token := c.Subscribe(cmdTopic, 1, s.handleCmdMessage); token.Wait() && token.Error() != nil {
 			log.Printf("[MQTT] Error subscribing to command topic %s: %v\n", cmdTopic, token.Error())
+		}
+		for _, topic := range extraTopics {
+			if topic == telemetryTopic || topic == stateTopic || topic == cmdTopic {
+				continue
+			}
+			if token := c.Subscribe(topic, 1, s.handleExtraTopicMessage); token.Wait() && token.Error() != nil {
+				log.Printf("[MQTT] Error subscribing to monitored topic %s: %v\n", topic, token.Error())
+			}
 		}
 
 		// Request current state from ESP32
@@ -323,6 +351,14 @@ func (s *AutomationService) Stop() {
 }
 
 func (s *AutomationService) SendCommand(cmd string) error {
+	return s.sendCommandToTopic(cmd, "")
+}
+
+func (s *AutomationService) SendValveCommand(cmd string) error {
+	return s.sendCommandToTopic(cmd, "valvulaPrincipal/cmd")
+}
+
+func (s *AutomationService) sendCommandToTopic(cmd, requestedTopic string) error {
 	s.mu.Lock()
 	s.rawCmd = cmd
 	s.mu.Unlock()
@@ -332,6 +368,9 @@ func (s *AutomationService) SendCommand(cmd string) error {
 	connected := s.connected
 	broker := s.brokerURL
 	cmdTopic := s.settings.RelayCmdTopic
+	if requestedTopic != "" {
+		cmdTopic = requestedTopic
+	}
 	s.mu.RUnlock()
 
 	if !connected || client == nil {
@@ -388,6 +427,8 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		RelayState:     s.relayState,
 		RelayStateTime: stateTimeStr,
 		LastData:       s.lastData,
+		ValveState:     s.valveState,
+		ValveStateTime: func() string { if s.valveStateTime.IsZero() { return "" }; return s.valveStateTime.Format(time.RFC3339) }(),
 		LastUpdated:    lastUpdatedStr,
 		LastTelemetryAt: lastTelemetryAtStr,
 		LastCommandAt:   lastCommandAtStr,
@@ -396,6 +437,7 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		RawJSON:        s.rawJSON,
 		RawCmd:         s.rawCmd,
 		RawState:       s.rawState,
+		ExtraTopics:    s.extraTopics,
 		AutoOffActive:  s.autoOffActive,
 		AutoOffTarget:  autoOffTargetStr,
 	}
@@ -543,6 +585,16 @@ func (s *AutomationService) handleStateMessage(client mqtt.Client, msg mqtt.Mess
 	log.Printf("[MQTT] Relay state updated to: %s (raw: %s)\n", s.relayState, rawPayload)
 }
 
+func (s *AutomationService) handleValveStateMessage(client mqtt.Client, msg mqtt.Message) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	raw := strings.ToUpper(strings.TrimSpace(string(msg.Payload())))
+	if raw == "1" || raw == "TRUE" { raw = "ON" }
+	if raw == "0" || raw == "FALSE" { raw = "OFF" }
+	s.valveState = raw
+	s.valveStateTime = time.Now()
+}
+
 func (s *AutomationService) handleCmdMessage(client mqtt.Client, msg mqtt.Message) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -552,6 +604,28 @@ func (s *AutomationService) handleCmdMessage(client mqtt.Client, msg mqtt.Messag
 	s.lastUpdated = now
 	s.lastCommandAt = now
 	log.Printf("[MQTT] Relay command received: %s\n", s.rawCmd)
+}
+
+func (s *AutomationService) handleExtraTopicMessage(client mqtt.Client, msg mqtt.Message) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.extraTopics == nil {
+		s.extraTopics = make(map[string]TopicStatus)
+	}
+	if s.extraData == nil {
+		s.extraData = make(map[string]*ESP32Data)
+	}
+	var rawMap map[string]interface{}
+	if json.Unmarshal(msg.Payload(), &rawMap) == nil {
+		s.extraData[msg.Topic()] = &ESP32Data{
+			CaudalEntrada: getStringValue(rawMap, "caudal_entrada"),
+			CaudalSalida: getStringValue(rawMap, "caudal_salida"),
+			Nivel: getStringValue(rawMap, "nivel"),
+			Distancia: getStringValue(rawMap, "distancia"),
+			Porcentaje: getStringValue(rawMap, "porcentaje"),
+		}
+	}
+	s.extraTopics[msg.Topic()] = TopicStatus{Raw: string(msg.Payload()), LastAt: time.Now().Format(time.RFC3339)}
 }
 
 func (s *AutomationService) runSchedulerLoop() {
@@ -683,6 +757,7 @@ func (s *AutomationService) runDbLoggingLoop() {
 
 		lastLogTime := s.lastDbLogTime
 		lastData := s.lastData
+		tkBajoData := s.extraData["tkBajo"]
 		relayState := s.relayState
 		rawCmd := s.rawCmd
 		s.mu.Unlock()
@@ -704,6 +779,9 @@ func (s *AutomationService) runDbLoggingLoop() {
 				Balance:       parseFloat(lastData.Balance),
 				Lm:            parseFloat(lastData.Lm),
 				Lm2:           parseFloat(lastData.Lm2),
+				TkbajoNivel:   parseFloat(extraValue(tkBajoData, "nivel")),
+				TkbajoDistancia: parseFloat(extraValue(tkBajoData, "distancia")),
+				TkbajoCaudal:  parseFloat(extraValue(tkBajoData, "caudal_entrada")),
 				RelayState:    relayState,
 				RelayCmd:      rawCmd,
 			}
@@ -759,4 +837,20 @@ func parseFloat(val string) float64 {
 	var f float64
 	_, _ = fmt.Sscanf(val, "%f", &f)
 	return f
+}
+
+func extraValue(data *ESP32Data, field string) string {
+	if data == nil {
+		return "0"
+	}
+	switch field {
+	case "nivel":
+		return data.Nivel
+	case "distancia":
+		return data.Distancia
+	case "caudal_entrada":
+		return data.CaudalEntrada
+	default:
+		return "0"
+	}
 }
