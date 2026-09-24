@@ -41,7 +41,9 @@ type AutomationStatus struct {
 	RawJSON        string                    `json:"raw_json"`
 	RawCmd         string                    `json:"raw_cmd"`
 	RawState       string                    `json:"raw_state"`
-	ExtraTopics    map[string]TopicStatus    `json:"extra_topics"`
+	ExtraTopics     map[string]TopicStatus    `json:"extra_topics"`
+	SchedulerEvents []SchedulerEvent          `json:"scheduler_events"`
+	SchedulerState  string                    `json:"scheduler_state"`
 	AutoOffActive  bool                      `json:"auto_off_active"`
 	AutoOffTarget  string                    `json:"auto_off_target"`
 }
@@ -49,6 +51,11 @@ type AutomationStatus struct {
 type TopicStatus struct {
 	Raw       string `json:"raw"`
 	LastAt    string `json:"last_at"`
+}
+
+type SchedulerEvent struct {
+	State string `json:"state"`
+	At    string `json:"at"`
 }
 
 type AutomationService struct {
@@ -69,6 +76,7 @@ type AutomationService struct {
 	rawState        string
 	extraTopics     map[string]TopicStatus
 	extraData       map[string]*ESP32Data
+	schedulerEvents []SchedulerEvent
 	lastTelemetryAt time.Time
 	lastCommandAt   time.Time
 	lastStateAt     time.Time
@@ -231,6 +239,7 @@ func (s *AutomationService) startSchedulerCycle() {
 	s.lastSchedulerCorrection = time.Time{}
 	s.relayState = "ON"
 	s.relayStateTime = now
+	s.addSchedulerEventLocked("ON", now)
 	s.mu.Unlock()
 
 	log.Println("[SCHEDULER] Starting cycle in ON phase.")
@@ -239,6 +248,13 @@ func (s *AutomationService) startSchedulerCycle() {
 		return
 	}
 	_ = s.SendCommand("state")
+}
+
+func (s *AutomationService) addSchedulerEventLocked(state string, at time.Time) {
+	s.schedulerEvents = append(s.schedulerEvents, SchedulerEvent{State: state, At: at.Format(time.RFC3339)})
+	if len(s.schedulerEvents) > 20 {
+		s.schedulerEvents = s.schedulerEvents[len(s.schedulerEvents)-20:]
+	}
 }
 
 func (s *AutomationService) stopSchedulerCycle() {
@@ -437,7 +453,9 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		RawJSON:        s.rawJSON,
 		RawCmd:         s.rawCmd,
 		RawState:       s.rawState,
-		ExtraTopics:    s.extraTopics,
+		ExtraTopics:     s.extraTopics,
+		SchedulerEvents: s.schedulerEvents,
+		SchedulerState:  s.schedulerTargetState,
 		AutoOffActive:  s.autoOffActive,
 		AutoOffTarget:  autoOffTargetStr,
 	}
@@ -674,13 +692,12 @@ func (s *AutomationService) runSchedulerLoop() {
 		timeOff := s.settings.TimeOff
 		targetState := s.schedulerTargetState
 		targetSince := s.schedulerTargetSince
-		relayState := s.relayState
-
 		if targetState == "" || targetSince.IsZero() {
 			s.schedulerTargetState = "ON"
 			s.schedulerTargetSince = now
 			s.relayState = "ON"
 			s.relayStateTime = now
+			s.addSchedulerEventLocked("ON", now)
 			commandToSend = "on"
 			shouldRequestState = true
 			log.Println("[SCHEDULER] Initializing cycle in ON phase.")
@@ -695,6 +712,7 @@ func (s *AutomationService) runSchedulerLoop() {
 					s.schedulerTargetSince = now
 					s.relayState = "OFF"
 					s.relayStateTime = now
+					s.addSchedulerEventLocked("OFF", now)
 					commandToSend = "off"
 					shouldRequestState = true
 					targetState = "OFF"
@@ -717,16 +735,6 @@ func (s *AutomationService) runSchedulerLoop() {
 		if now.Sub(s.lastSchedulerStateCheck) >= 30*time.Second {
 			s.lastSchedulerStateCheck = now
 			shouldRequestState = true
-		}
-
-		relayStateKnown := relayState == "ON" || relayState == "OFF"
-		if commandToSend == "" && relayStateKnown && targetState != "" && relayState != targetState && now.Sub(s.lastSchedulerCorrection) >= 15*time.Second {
-			s.lastSchedulerCorrection = now
-			commandToSend = strings.ToLower(targetState)
-			shouldRequestState = true
-			s.relayState = targetState
-			s.relayStateTime = now
-			log.Printf("[SCHEDULER] Relay drift detected. Expected %s, got %s. Correcting.\n", targetState, relayState)
 		}
 
 		s.mu.Unlock()

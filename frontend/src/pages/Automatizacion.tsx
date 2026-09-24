@@ -56,6 +56,8 @@ interface AutomationStatus {
   extra_topics: Record<string, { raw: string; last_at: string }>;
   auto_off_active: boolean;
   auto_off_target: string;
+  scheduler_events: { state: string; at: string }[];
+  scheduler_state: string;
 }
 
 const DEFAULT_SETTINGS: AutomationSetting = {
@@ -111,6 +113,8 @@ export default function Automatizacion() {
     extra_topics: {},
     auto_off_active: false,
     auto_off_target: '',
+    scheduler_events: [],
+    scheduler_state: '',
   });
   
   // Local edit state for settings
@@ -255,7 +259,8 @@ export default function Automatizacion() {
         const now = new Date().getTime();
         const elapsedMs = now - stateTime;
 
-        const limitMin = status.relay_state === 'ON' ? status.settings.time_on : status.settings.time_off;
+      const cycleState = status.scheduler_state || status.relay_state;
+      const limitMin = cycleState === 'ON' ? status.settings.time_on : status.settings.time_off;
         const limitMs = limitMin * 60 * 1000;
         const remainingMs = limitMs - elapsedMs;
 
@@ -832,6 +837,19 @@ export default function Automatizacion() {
                   INACTIVO
                 </span>
               )}
+              {status.scheduler_events?.length > 0 && (
+                <div className="mt-3 rounded-lg bg-slate-900/60 border border-slate-700 p-2.5">
+                  <div className="flex items-center justify-between mb-2 text-[9px] uppercase tracking-wide text-slate-400">
+                    <span>Historial del ciclo</span><span>Últimos {status.scheduler_events.length}</span>
+                  </div>
+                  <div className="flex items-end gap-1 h-10">
+                    {status.scheduler_events.slice(-12).map((event, index) => (
+                      <div key={`${event.at}-${index}`} title={`${event.state} - ${formatMessageTimestamp(event.at)}`} className={`flex-1 rounded-t ${event.state === 'ON' ? 'bg-emerald-500' : 'bg-slate-500'}`} style={{ height: event.state === 'ON' ? '100%' : '45%' }} />
+                    ))}
+                  </div>
+                  <div className="mt-1 flex justify-between text-[9px] text-slate-500"><span>APAGADO</span><span>ENCENDIDO</span></div>
+                </div>
+              )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
               Alterna automáticamente el relé encendido/apagado en intervalos de minutos.
@@ -896,11 +914,11 @@ export default function Automatizacion() {
                       Fase del Ciclo:
                     </span>
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${
-                      status.relay_state?.toUpperCase() === 'ON'
+                      (status.scheduler_state || status.relay_state)?.toUpperCase() === 'ON'
                         ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                     }`}>
-                      {status.relay_state?.toUpperCase() === 'ON' ? 'ENCENDIDO' : 'APAGADO'}
+                      {(status.scheduler_state || status.relay_state)?.toUpperCase() === 'ON' ? 'ENCENDIDO' : 'APAGADO'}
                     </span>
                   </div>
                   {timeLeft && (
@@ -912,7 +930,7 @@ export default function Automatizacion() {
                         {timeLeft}
                       </span>
                       <span className="block text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">
-                        Siguiente: {status.relay_state?.toUpperCase() === 'ON' ? 'APAGADO' : 'ENCENDIDO'}
+                        Siguiente: {(status.scheduler_state || status.relay_state)?.toUpperCase() === 'ON' ? 'APAGADO' : 'ENCENDIDO'}
                       </span>
                     </>
                   )}
