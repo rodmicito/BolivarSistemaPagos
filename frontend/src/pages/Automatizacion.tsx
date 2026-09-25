@@ -798,23 +798,6 @@ export default function Automatizacion() {
                 </button>
               </div>
             </div>
-            <div className="mt-3 rounded-lg border border-cyan-900/40 bg-cyan-950/10 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Automatización por tkBajo</span>
-                <button onClick={() => handleValveAutomationChange('valve_auto_active', !status.settings?.valve_auto_active)} className={`px-2 py-1 rounded text-[10px] font-bold ${status.settings?.valve_auto_active ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
-                  {status.settings?.valve_auto_active ? 'ACTIVA' : 'INACTIVA'}
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-[9px] text-slate-400">Nivel encendido (cm)
-                  <input type="number" value={status.settings?.valve_on_distance ?? 19} onChange={(e) => handleValveAutomationChange('valve_on_distance', Number(e.target.value))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
-                </label>
-                <label className="text-[9px] text-slate-400">Nivel apagado (cm)
-                  <input type="number" value={status.settings?.valve_off_distance ?? 15} onChange={(e) => handleValveAutomationChange('valve_off_distance', Number(e.target.value))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
-                </label>
-              </div>
-            </div>
-
             {/* Topics Info Footer */}
             <div className="border-t border-slate-100 dark:border-slate-700/80 pt-2 flex flex-col gap-1 text-[9px] text-slate-400 dark:text-slate-500">
               <div className="flex justify-between">
@@ -833,7 +816,7 @@ export default function Automatizacion() {
           </div>
 
           {/* Main valve control card */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 relative overflow-hidden flex flex-col justify-between h-[360px]">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-200 relative overflow-visible flex flex-col justify-between min-h-[360px]">
             <div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <Cpu size={20} className="text-cyan-500" />
@@ -851,6 +834,22 @@ export default function Automatizacion() {
               <div className="grid grid-cols-2 gap-3 w-full">
                 <button onClick={() => handleCommand('on', 'valvulaPrincipal')} className="py-2 px-4 rounded-xl font-medium text-xs bg-cyan-600 hover:bg-cyan-700 text-white">Encender</button>
                 <button onClick={() => handleCommand('off', 'valvulaPrincipal')} className="py-2 px-4 rounded-xl font-medium text-xs bg-rose-600 hover:bg-rose-700 text-white">Apagar</button>
+              </div>
+            </div>
+            <div className="mt-3 rounded-lg border border-cyan-900/40 bg-cyan-950/10 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Automatización por tkBajo</span>
+                <button onClick={() => handleValveAutomationChange('valve_auto_active', !status.settings?.valve_auto_active)} className={`px-2 py-1 rounded text-[10px] font-bold ${status.settings?.valve_auto_active ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                  {status.settings?.valve_auto_active ? 'ACTIVA' : 'INACTIVA'}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[9px] text-slate-400">Nivel encendido (cm)
+                  <input type="number" value={status.settings?.valve_on_distance ?? 19} onChange={(e) => handleValveAutomationChange('valve_on_distance', Number(e.target.value))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
+                </label>
+                <label className="text-[9px] text-slate-400">Nivel apagado (cm)
+                  <input type="number" value={status.settings?.valve_off_distance ?? 15} onChange={(e) => handleValveAutomationChange('valve_off_distance', Number(e.target.value))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
+                </label>
               </div>
             </div>
             <div className="border-t border-slate-100 dark:border-slate-700/80 pt-2 flex flex-col gap-1 text-[9px] text-slate-400 dark:text-slate-500">
