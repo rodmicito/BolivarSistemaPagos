@@ -36,6 +36,9 @@ interface AutomationSetting {
   telemetry_fresh_min: number;
   telemetry_warn_min: number;
   telemetry_alert_min: number;
+  valve_auto_active: boolean;
+  valve_on_distance: number;
+  valve_off_distance: number;
 }
 
 interface AutomationStatus {
@@ -83,6 +86,9 @@ const DEFAULT_SETTINGS: AutomationSetting = {
   telemetry_fresh_min: 10,
   telemetry_warn_min: 20,
   telemetry_alert_min: 30,
+  valve_auto_active: false,
+  valve_on_distance: 19,
+  valve_off_distance: 15,
 };
 
 const parsePositiveInteger = (value: string) => {
@@ -437,6 +443,22 @@ export default function Automatizacion() {
       });
   };
 
+  const handleValveAutomationChange = (field: 'valve_auto_active' | 'valve_on_distance' | 'valve_off_distance', value: boolean | number) => {
+    if (!status.settings) return;
+    const updatedSettings = { ...status.settings, [field]: value };
+    fetch('/api/automation/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedSettings),
+    }).then((res) => {
+      if (!res.ok) throw new Error('No se pudo guardar la automatización de la válvula');
+      return res.json();
+    }).then((data: AutomationStatus) => {
+      setStatus(data);
+      if (data.settings) setSettings(data.settings);
+      setSuccessMsg('Automatización de válvula actualizada');
+      setTimeout(() => setSuccessMsg(null), 2500);
+    }).catch(() => setError('No se pudo guardar la automatización de la válvula'));
+  };
+
   const handleToggleDbLogging = (active: boolean) => {
     if (!status.settings) return;
     setLoading(true);
@@ -774,6 +796,22 @@ export default function Automatizacion() {
                 >
                   Apagar
                 </button>
+              </div>
+            </div>
+            <div className="mt-3 rounded-lg border border-cyan-900/40 bg-cyan-950/10 p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Automatización por tkBajo</span>
+                <button onClick={() => handleValveAutomationChange('valve_auto_active', !status.settings?.valve_auto_active)} className={`px-2 py-1 rounded text-[10px] font-bold ${status.settings?.valve_auto_active ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
+                  {status.settings?.valve_auto_active ? 'ACTIVA' : 'INACTIVA'}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[9px] text-slate-400">Nivel encendido (cm)
+                  <input type="number" value={status.settings?.valve_on_distance ?? 19} onChange={(e) => handleValveAutomationChange('valve_on_distance', Number(e.target.value))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
+                </label>
+                <label className="text-[9px] text-slate-400">Nivel apagado (cm)
+                  <input type="number" value={status.settings?.valve_off_distance ?? 15} onChange={(e) => handleValveAutomationChange('valve_off_distance', Number(e.target.value))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
+                </label>
               </div>
             </div>
 

@@ -99,6 +99,9 @@ type AutomationSetting struct {
 	TelemetryFreshMin  int    `json:"telemetry_fresh_min"`
 	TelemetryWarnMin   int    `json:"telemetry_warn_min"`
 	TelemetryAlertMin  int    `json:"telemetry_alert_min"`
+	ValveAutoActive   bool   `json:"valve_auto_active"`
+	ValveOnDistance   float64 `json:"valve_on_distance"`
+	ValveOffDistance  float64 `json:"valve_off_distance"`
 }
 
 type TelemetryLog struct {

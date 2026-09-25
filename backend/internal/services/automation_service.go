@@ -32,6 +32,7 @@ type AutomationStatus struct {
 	RelayStateTime string                    `json:"relay_state_time"`
 	ValveState     string                    `json:"valve_state"`
 	ValveStateTime string                    `json:"valve_state_time"`
+	ValveAutoActive bool                      `json:"valve_auto_active"`
 	LastData       *ESP32Data                `json:"last_data"`
 	LastUpdated    string                    `json:"last_updated"`
 	LastTelemetryAt string                   `json:"last_telemetry_at"`
@@ -485,6 +486,9 @@ func defaultAutomationSetting() models.AutomationSetting {
 		TelemetryFreshMin:  10,
 		TelemetryWarnMin:   20,
 		TelemetryAlertMin:  30,
+		ValveAutoActive:    false,
+		ValveOnDistance:    19,
+		ValveOffDistance:   15,
 	}
 }
 
@@ -651,6 +655,7 @@ func (s *AutomationService) runSchedulerLoop() {
 	for range ticker.C {
 		now := time.Now()
 		var commandToSend string
+		var valveCommandToSend string
 		shouldRequestState := false
 
 		s.mu.Lock()
@@ -658,6 +663,24 @@ func (s *AutomationService) runSchedulerLoop() {
 		if db == nil || s.settings == nil {
 			s.mu.Unlock()
 			continue
+		}
+
+		// Hysteresis control for the main valve using tkBajo distance.
+		if s.settings.ValveAutoActive {
+			if tkBajo := s.extraData["tkBajo"]; tkBajo != nil {
+				distance := parseFloat(tkBajo.Distancia)
+				if s.valveState != "ON" && distance >= s.settings.ValveOnDistance {
+					s.valveState = "ON"
+					s.valveStateTime = now
+					valveCommandToSend = "on"
+					log.Printf("[VALVE AUTO] tkBajo distancia %.2f cm >= %.2f cm. Encendiendo valvula.\n", distance, s.settings.ValveOnDistance)
+				} else if s.valveState == "ON" && distance <= s.settings.ValveOffDistance {
+					s.valveState = "OFF"
+					s.valveStateTime = now
+					valveCommandToSend = "off"
+					log.Printf("[VALVE AUTO] tkBajo distancia %.2f cm <= %.2f cm. Apagando valvula.\n", distance, s.settings.ValveOffDistance)
+				}
+			}
 		}
 
 		// Check one-shot auto-off timer expiration first (independent of scheduler)
@@ -744,6 +767,9 @@ func (s *AutomationService) runSchedulerLoop() {
 		}
 		if shouldRequestState {
 			_ = s.SendCommand("state")
+		}
+		if valveCommandToSend != "" {
+			_ = s.SendValveCommand(valveCommandToSend)
 		}
 	}
 }
