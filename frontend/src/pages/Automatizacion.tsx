@@ -47,6 +47,7 @@ interface AutomationStatus {
   relay_state_time: string;
   valve_state: string;
   valve_state_time: string;
+  valve_distance: number;
   last_data: ESP32Data | null;
   last_updated: string;
   last_telemetry_at: string;
@@ -107,6 +108,7 @@ export default function Automatizacion() {
     relay_state_time: '',
     valve_state: 'Desconocido',
     valve_state_time: '',
+    valve_distance: 0,
     last_data: null,
     last_updated: '',
     last_telemetry_at: '',
@@ -851,6 +853,7 @@ export default function Automatizacion() {
                   <input type="number" value={status.settings?.valve_off_distance ?? 15} onChange={(e) => handleValveAutomationChange('valve_off_distance', Number(e.target.value))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
                 </label>
               </div>
+              <div className="mt-2 text-[10px] text-cyan-300">Distancia actual tkBajo: <strong>{Number.isFinite(status.valve_distance) ? status.valve_distance.toFixed(2) : '0.00'} cm</strong></div>
             </div>
             <div className="border-t border-slate-100 dark:border-slate-700/80 pt-2 flex flex-col gap-1 text-[9px] text-slate-400 dark:text-slate-500">
               <div className="flex justify-between"><span>Tópico Cmd:</span><span className="font-mono">valvulaPrincipal/cmd</span></div>

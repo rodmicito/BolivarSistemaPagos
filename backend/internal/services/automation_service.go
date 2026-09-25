@@ -33,6 +33,7 @@ type AutomationStatus struct {
 	ValveState     string                    `json:"valve_state"`
 	ValveStateTime string                    `json:"valve_state_time"`
 	ValveAutoActive bool                      `json:"valve_auto_active"`
+	ValveDistance   float64                   `json:"valve_distance"`
 	LastData       *ESP32Data                `json:"last_data"`
 	LastUpdated    string                    `json:"last_updated"`
 	LastTelemetryAt string                   `json:"last_telemetry_at"`
@@ -194,6 +195,13 @@ func (s *AutomationService) LoadSettings() {
 			s.db.Save(&settings)
 		}
 	}
+	if settings.ValveOnDistance <= 0 {
+		settings.ValveOnDistance = 19
+	}
+	if settings.ValveOffDistance <= 0 {
+		settings.ValveOffDistance = 15
+	}
+	_ = s.db.Save(&settings).Error
 	s.settings = &settings
 	s.brokerURL = settings.Broker
 }
@@ -445,6 +453,7 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		RelayStateTime: stateTimeStr,
 		LastData:       s.lastData,
 		ValveState:     s.valveState,
+		ValveDistance:  parseFloat(extraValue(s.extraData["tkBajo"], "distancia")),
 		ValveStateTime: func() string { if s.valveStateTime.IsZero() { return "" }; return s.valveStateTime.Format(time.RFC3339) }(),
 		LastUpdated:    lastUpdatedStr,
 		LastTelemetryAt: lastTelemetryAtStr,
