@@ -39,6 +39,7 @@ interface AutomationSetting {
   valve_auto_active: boolean;
   valve_on_distance: number;
   valve_off_distance: number;
+  valve_rest_minutes: number;
 }
 
 interface AutomationStatus {
@@ -92,6 +93,7 @@ const DEFAULT_SETTINGS: AutomationSetting = {
   valve_auto_active: false,
   valve_on_distance: 19,
   valve_off_distance: 15,
+  valve_rest_minutes: 15,
 };
 
 const parsePositiveInteger = (value: string) => {
@@ -449,7 +451,7 @@ export default function Automatizacion() {
       });
   };
 
-  const handleValveAutomationChange = (field: 'valve_auto_active' | 'valve_on_distance' | 'valve_off_distance', value: boolean | number) => {
+  const handleValveAutomationChange = (field: 'valve_auto_active' | 'valve_on_distance' | 'valve_off_distance' | 'valve_rest_minutes', value: boolean | number) => {
     if (!status.settings) return;
     const updatedSettings = { ...status.settings, [field]: value };
     fetch('/api/automation/settings', {
@@ -858,6 +860,9 @@ export default function Automatizacion() {
                 </label>
               </div>
               <div className="mt-2 text-[10px] text-cyan-300">Distancia actual tkBajo: <strong>{Number.isFinite(status.valve_distance) ? status.valve_distance.toFixed(2) : '0.00'} cm</strong></div>
+              <label className="mt-2 block text-[9px] text-slate-400">Descanso mínimo del relé (minutos)
+                <input type="number" min="1" value={status.settings?.valve_rest_minutes ?? 15} onChange={(e) => handleValveAutomationChange('valve_rest_minutes', Math.max(Number(e.target.value) || 15, 1))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
+              </label>
               <div className="mt-1 grid grid-cols-2 gap-2 text-[10px] text-slate-400">
                 <span>Caudal tkBajo: <strong className="text-cyan-300">{Number.isFinite(status.tkbajo_flow) ? status.tkbajo_flow.toFixed(3) : '0.000'} L/min</strong></span>
                 <span>Caudal válvula: <strong className="text-cyan-300">{Number.isFinite(status.valve_flow) ? status.valve_flow.toFixed(3) : '0.000'} L/min</strong></span>

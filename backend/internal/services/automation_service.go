@@ -33,6 +33,7 @@ type AutomationStatus struct {
 	ValveState     string                    `json:"valve_state"`
 	ValveStateTime string                    `json:"valve_state_time"`
 	ValveAutoActive bool                      `json:"valve_auto_active"`
+	ValveRestUntil  string                    `json:"valve_rest_until"`
 	ValveDistance   float64                   `json:"valve_distance"`
 	ValveFlow       float64                   `json:"valve_flow"`
 	TkbajoFlow      float64                   `json:"tkbajo_flow"`
@@ -71,6 +72,7 @@ type AutomationService struct {
 	relayStateTime  time.Time
 	valveState      string
 	valveStateTime  time.Time
+	valveRestUntil  time.Time
 	lastData        *ESP32Data
 	lastUpdated     time.Time
 	brokerURL       string
@@ -202,6 +204,9 @@ func (s *AutomationService) LoadSettings() {
 	}
 	if settings.ValveOffDistance <= 0 {
 		settings.ValveOffDistance = 15
+	}
+	if settings.ValveRestMinutes <= 0 {
+		settings.ValveRestMinutes = 15
 	}
 	_ = s.db.Save(&settings).Error
 	s.settings = &settings
@@ -458,6 +463,7 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		ValveDistance:  parseFloat(extraValue(s.extraData["tkBajo"], "distancia")),
 		ValveFlow:      parseFloat(extraValue(s.extraData["valvulaPrincipal"], "caudal_entrada")),
 		TkbajoFlow:     parseFloat(extraValue(s.extraData["tkBajo"], "caudal_entrada")),
+		ValveRestUntil: func() string { if s.valveRestUntil.IsZero() { return "" }; return s.valveRestUntil.Format(time.RFC3339) }(),
 		ValveStateTime: func() string { if s.valveStateTime.IsZero() { return "" }; return s.valveStateTime.Format(time.RFC3339) }(),
 		LastUpdated:    lastUpdatedStr,
 		LastTelemetryAt: lastTelemetryAtStr,
@@ -502,6 +508,7 @@ func defaultAutomationSetting() models.AutomationSetting {
 		ValveAutoActive:    false,
 		ValveOnDistance:    19,
 		ValveOffDistance:   15,
+		ValveRestMinutes:   15,
 	}
 }
 
@@ -682,7 +689,7 @@ func (s *AutomationService) runSchedulerLoop() {
 		if s.settings.ValveAutoActive {
 			if tkBajo := s.extraData["tkBajo"]; tkBajo != nil {
 				distance := parseFloat(tkBajo.Distancia)
-				if s.valveState != "ON" && distance >= s.settings.ValveOnDistance {
+				if s.valveState != "ON" && distance >= s.settings.ValveOnDistance && (s.valveRestUntil.IsZero() || !now.Before(s.valveRestUntil)) {
 					s.valveState = "ON"
 					s.valveStateTime = now
 					valveCommandToSend = "on"
@@ -690,6 +697,7 @@ func (s *AutomationService) runSchedulerLoop() {
 				} else if s.valveState == "ON" && distance <= s.settings.ValveOffDistance {
 					s.valveState = "OFF"
 					s.valveStateTime = now
+					s.valveRestUntil = now.Add(time.Duration(s.settings.ValveRestMinutes) * time.Minute)
 					valveCommandToSend = "off"
 					log.Printf("[VALVE AUTO] tkBajo distancia %.2f cm <= %.2f cm. Apagando valvula.\n", distance, s.settings.ValveOffDistance)
 				}

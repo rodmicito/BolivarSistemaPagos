@@ -102,6 +102,7 @@ type AutomationSetting struct {
 	ValveAutoActive   bool   `json:"valve_auto_active"`
 	ValveOnDistance   float64 `json:"valve_on_distance"`
 	ValveOffDistance  float64 `json:"valve_off_distance"`
+	ValveRestMinutes  int     `json:"valve_rest_minutes"`
 }
 
 type TelemetryLog struct {
