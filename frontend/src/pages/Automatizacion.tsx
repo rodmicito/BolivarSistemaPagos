@@ -40,6 +40,7 @@ interface AutomationSetting {
   valve_on_distance: number;
   valve_off_distance: number;
   valve_rest_minutes: number;
+  valve_run_minutes: number;
 }
 
 interface AutomationStatus {
@@ -48,6 +49,8 @@ interface AutomationStatus {
   relay_state_time: string;
   valve_state: string;
   valve_state_time: string;
+  valve_rest_until: string;
+  valve_run_since: string;
   valve_distance: number;
   valve_flow: number;
   tkbajo_flow: number;
@@ -94,6 +97,7 @@ const DEFAULT_SETTINGS: AutomationSetting = {
   valve_on_distance: 19,
   valve_off_distance: 15,
   valve_rest_minutes: 15,
+  valve_run_minutes: 60,
 };
 
 const parsePositiveInteger = (value: string) => {
@@ -112,6 +116,8 @@ export default function Automatizacion() {
     relay_state_time: '',
     valve_state: 'Desconocido',
     valve_state_time: '',
+    valve_rest_until: '',
+    valve_run_since: '',
     valve_distance: 0,
     valve_flow: 0,
     tkbajo_flow: 0,
@@ -155,6 +161,7 @@ export default function Automatizacion() {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<any | null>(null);
   const [telemetryAgeMs, setTelemetryAgeMs] = useState<number | null>(null);
+  const [valveTimeLeft, setValveTimeLeft] = useState('');
 
   const formatMessageTimestamp = (value?: string) => {
     if (!value) return 'Sin mensajes todavía';
@@ -302,6 +309,18 @@ export default function Automatizacion() {
           const seconds = Math.floor((remainingMs / 1000) % 60);
           setAutoOffTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
         }
+      }
+
+      const valveTarget = status.valve_rest_until
+        ? new Date(status.valve_rest_until).getTime()
+        : (status.valve_run_since && status.settings?.valve_run_minutes
+          ? new Date(status.valve_run_since).getTime() + status.settings.valve_run_minutes * 60000
+          : 0);
+      if (!valveTarget) {
+        setValveTimeLeft('');
+      } else {
+        const remaining = Math.max(0, valveTarget - Date.now());
+        setValveTimeLeft(`${Math.floor(remaining / 60000).toString().padStart(2, '0')}:${Math.floor((remaining / 1000) % 60).toString().padStart(2, '0')}`);
       }
     }, 1000);
 
@@ -451,7 +470,7 @@ export default function Automatizacion() {
       });
   };
 
-  const handleValveAutomationChange = (field: 'valve_auto_active' | 'valve_on_distance' | 'valve_off_distance' | 'valve_rest_minutes', value: boolean | number) => {
+  const handleValveAutomationChange = (field: 'valve_auto_active' | 'valve_on_distance' | 'valve_off_distance' | 'valve_rest_minutes' | 'valve_run_minutes', value: boolean | number) => {
     if (!status.settings) return;
     const updatedSettings = { ...status.settings, [field]: value };
     fetch('/api/automation/settings', {
@@ -863,6 +882,10 @@ export default function Automatizacion() {
               <label className="mt-2 block text-[9px] text-slate-400">Descanso mínimo del relé (minutos)
                 <input type="number" min="1" value={status.settings?.valve_rest_minutes ?? 15} onChange={(e) => handleValveAutomationChange('valve_rest_minutes', Math.max(Number(e.target.value) || 15, 1))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
               </label>
+              <label className="mt-2 block text-[9px] text-slate-400">Aplicar descanso cada (minutos)
+                <input type="number" min="1" value={status.settings?.valve_run_minutes ?? 60} onChange={(e) => handleValveAutomationChange('valve_run_minutes', Math.max(Number(e.target.value) || 60, 1))} className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-2 py-1 text-xs text-slate-200" />
+              </label>
+              {valveTimeLeft && <div className="mt-2 text-[10px] text-amber-300">{status.valve_rest_until ? 'Descanso restante' : 'Tiempo para aplicar descanso'}: <strong>{valveTimeLeft}</strong></div>}
               <div className="mt-1 grid grid-cols-2 gap-2 text-[10px] text-slate-400">
                 <span>Caudal tkBajo: <strong className="text-cyan-300">{Number.isFinite(status.tkbajo_flow) ? status.tkbajo_flow.toFixed(3) : '0.000'} L/min</strong></span>
                 <span>Caudal válvula: <strong className="text-cyan-300">{Number.isFinite(status.valve_flow) ? status.valve_flow.toFixed(3) : '0.000'} L/min</strong></span>

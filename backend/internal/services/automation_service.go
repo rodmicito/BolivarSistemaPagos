@@ -34,6 +34,7 @@ type AutomationStatus struct {
 	ValveStateTime string                    `json:"valve_state_time"`
 	ValveAutoActive bool                      `json:"valve_auto_active"`
 	ValveRestUntil  string                    `json:"valve_rest_until"`
+	ValveRunSince   string                    `json:"valve_run_since"`
 	ValveDistance   float64                   `json:"valve_distance"`
 	ValveFlow       float64                   `json:"valve_flow"`
 	TkbajoFlow      float64                   `json:"tkbajo_flow"`
@@ -73,6 +74,7 @@ type AutomationService struct {
 	valveState      string
 	valveStateTime  time.Time
 	valveRestUntil  time.Time
+	valveRunSince   time.Time
 	lastData        *ESP32Data
 	lastUpdated     time.Time
 	brokerURL       string
@@ -207,6 +209,9 @@ func (s *AutomationService) LoadSettings() {
 	}
 	if settings.ValveRestMinutes <= 0 {
 		settings.ValveRestMinutes = 15
+	}
+	if settings.ValveRunMinutes <= 0 {
+		settings.ValveRunMinutes = 60
 	}
 	_ = s.db.Save(&settings).Error
 	s.settings = &settings
@@ -464,6 +469,7 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		ValveFlow:      parseFloat(extraValue(s.extraData["valvulaPrincipal"], "caudal_entrada")),
 		TkbajoFlow:     parseFloat(extraValue(s.extraData["tkBajo"], "caudal_entrada")),
 		ValveRestUntil: func() string { if s.valveRestUntil.IsZero() { return "" }; return s.valveRestUntil.Format(time.RFC3339) }(),
+		ValveRunSince:  func() string { if s.valveRunSince.IsZero() { return "" }; return s.valveRunSince.Format(time.RFC3339) }(),
 		ValveStateTime: func() string { if s.valveStateTime.IsZero() { return "" }; return s.valveStateTime.Format(time.RFC3339) }(),
 		LastUpdated:    lastUpdatedStr,
 		LastTelemetryAt: lastTelemetryAtStr,
@@ -509,6 +515,7 @@ func defaultAutomationSetting() models.AutomationSetting {
 		ValveOnDistance:    19,
 		ValveOffDistance:   15,
 		ValveRestMinutes:   15,
+		ValveRunMinutes:    60,
 	}
 }
 
@@ -692,12 +699,14 @@ func (s *AutomationService) runSchedulerLoop() {
 				if s.valveState != "ON" && distance >= s.settings.ValveOnDistance && (s.valveRestUntil.IsZero() || !now.Before(s.valveRestUntil)) {
 					s.valveState = "ON"
 					s.valveStateTime = now
+					s.valveRunSince = now
 					valveCommandToSend = "on"
 					log.Printf("[VALVE AUTO] tkBajo distancia %.2f cm >= %.2f cm. Encendiendo valvula.\n", distance, s.settings.ValveOnDistance)
-				} else if s.valveState == "ON" && distance <= s.settings.ValveOffDistance {
+				} else if s.valveState == "ON" && ((distance <= s.settings.ValveOffDistance) || (!s.valveRunSince.IsZero() && now.Sub(s.valveRunSince) >= time.Duration(s.settings.ValveRunMinutes)*time.Minute)) {
 					s.valveState = "OFF"
 					s.valveStateTime = now
 					s.valveRestUntil = now.Add(time.Duration(s.settings.ValveRestMinutes) * time.Minute)
+					s.valveRunSince = time.Time{}
 					valveCommandToSend = "off"
 					log.Printf("[VALVE AUTO] tkBajo distancia %.2f cm <= %.2f cm. Apagando valvula.\n", distance, s.settings.ValveOffDistance)
 				}
