@@ -313,8 +313,8 @@ export default function Automatizacion() {
 
       const valveTarget = status.valve_rest_until
         ? new Date(status.valve_rest_until).getTime()
-        : (status.valve_run_since && status.settings?.valve_run_minutes
-          ? new Date(status.valve_run_since).getTime() + status.settings.valve_run_minutes * 60000
+        : ((status.valve_run_since || (status.valve_state === 'ON' ? status.valve_state_time : '')) && status.settings?.valve_run_minutes
+          ? new Date(status.valve_run_since || status.valve_state_time).getTime() + status.settings.valve_run_minutes * 60000
           : 0);
       if (!valveTarget) {
         setValveTimeLeft('');
