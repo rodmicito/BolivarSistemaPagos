@@ -34,6 +34,8 @@ type AutomationStatus struct {
 	ValveStateTime string                    `json:"valve_state_time"`
 	ValveAutoActive bool                      `json:"valve_auto_active"`
 	ValveDistance   float64                   `json:"valve_distance"`
+	ValveFlow       float64                   `json:"valve_flow"`
+	TkbajoFlow      float64                   `json:"tkbajo_flow"`
 	LastData       *ESP32Data                `json:"last_data"`
 	LastUpdated    string                    `json:"last_updated"`
 	LastTelemetryAt string                   `json:"last_telemetry_at"`
@@ -454,6 +456,8 @@ func (s *AutomationService) GetStatus() AutomationStatus {
 		LastData:       s.lastData,
 		ValveState:     s.valveState,
 		ValveDistance:  parseFloat(extraValue(s.extraData["tkBajo"], "distancia")),
+		ValveFlow:      parseFloat(extraValue(s.extraData["valvulaPrincipal"], "caudal_entrada")),
+		TkbajoFlow:     parseFloat(extraValue(s.extraData["tkBajo"], "caudal_entrada")),
 		ValveStateTime: func() string { if s.valveStateTime.IsZero() { return "" }; return s.valveStateTime.Format(time.RFC3339) }(),
 		LastUpdated:    lastUpdatedStr,
 		LastTelemetryAt: lastTelemetryAtStr,

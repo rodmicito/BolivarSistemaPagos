@@ -48,6 +48,8 @@ interface AutomationStatus {
   valve_state: string;
   valve_state_time: string;
   valve_distance: number;
+  valve_flow: number;
+  tkbajo_flow: number;
   last_data: ESP32Data | null;
   last_updated: string;
   last_telemetry_at: string;
@@ -109,6 +111,8 @@ export default function Automatizacion() {
     valve_state: 'Desconocido',
     valve_state_time: '',
     valve_distance: 0,
+    valve_flow: 0,
+    tkbajo_flow: 0,
     last_data: null,
     last_updated: '',
     last_telemetry_at: '',
@@ -854,6 +858,10 @@ export default function Automatizacion() {
                 </label>
               </div>
               <div className="mt-2 text-[10px] text-cyan-300">Distancia actual tkBajo: <strong>{Number.isFinite(status.valve_distance) ? status.valve_distance.toFixed(2) : '0.00'} cm</strong></div>
+              <div className="mt-1 grid grid-cols-2 gap-2 text-[10px] text-slate-400">
+                <span>Caudal tkBajo: <strong className="text-cyan-300">{Number.isFinite(status.tkbajo_flow) ? status.tkbajo_flow.toFixed(3) : '0.000'} L/min</strong></span>
+                <span>Caudal válvula: <strong className="text-cyan-300">{Number.isFinite(status.valve_flow) ? status.valve_flow.toFixed(3) : '0.000'} L/min</strong></span>
+              </div>
             </div>
             <div className="border-t border-slate-100 dark:border-slate-700/80 pt-2 flex flex-col gap-1 text-[9px] text-slate-400 dark:text-slate-500">
               <div className="flex justify-between"><span>Tópico Cmd:</span><span className="font-mono">valvulaPrincipal/cmd</span></div>
