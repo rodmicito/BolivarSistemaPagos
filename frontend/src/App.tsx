@@ -7,6 +7,7 @@ import Inquilinos from './pages/Inquilinos';
 import Habitaciones from './pages/Habitaciones';
 import Automatizacion from './pages/Automatizacion';
 import Backups from './pages/Backups';
+import Alertas from './pages/Alertas';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/habitaciones" element={<Habitaciones />} />
           <Route path="/automatizacion" element={<Automatizacion />} />
           <Route path="/backups" element={<Backups />} />
+          <Route path="/alertas" element={<Alertas />} />
         </Routes>
       </Layout>
     </BrowserRouter>
