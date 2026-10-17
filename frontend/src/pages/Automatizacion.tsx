@@ -486,6 +486,29 @@ export default function Automatizacion() {
     }).catch(() => setError('No se pudo guardar la automatización de la válvula'));
   };
 
+  const saveValveProperties = () => {
+    if (!status.settings) return;
+    const updatedSettings = {
+      ...status.settings,
+      valve_auto_active: Boolean(status.settings.valve_auto_active),
+      valve_on_distance: Number(status.settings.valve_on_distance) || 19,
+      valve_off_distance: Number(status.settings.valve_off_distance) || 15,
+      valve_rest_minutes: Number(status.settings.valve_rest_minutes) || 15,
+      valve_run_minutes: Number(status.settings.valve_run_minutes) || 60,
+    };
+    fetch('/api/automation/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updatedSettings),
+    }).then((res) => {
+      if (!res.ok) throw new Error('No se pudieron guardar las propiedades');
+      return res.json();
+    }).then((data: AutomationStatus) => {
+      setStatus(data);
+      if (data.settings) setSettings(data.settings);
+      setSuccessMsg('Propiedades de la válvula guardadas correctamente');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    }).catch(() => setError('No se pudieron guardar las propiedades de la válvula'));
+  };
+
   const handleToggleDbLogging = (active: boolean) => {
     if (!status.settings) return;
     setLoading(true);
@@ -889,6 +912,14 @@ export default function Automatizacion() {
               <div className="mt-1 grid grid-cols-2 gap-2 text-[10px] text-slate-400">
                 <span>Caudal tkBajo: <strong className="text-cyan-300">{Number.isFinite(status.tkbajo_flow) ? status.tkbajo_flow.toFixed(3) : '0.000'} L/min</strong></span>
                 <span>Caudal válvula: <strong className="text-cyan-300">{Number.isFinite(status.valve_flow) ? status.valve_flow.toFixed(3) : '0.000'} L/min</strong></span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className={`text-[10px] font-bold ${status.settings?.valve_auto_active ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  Automatización: {status.settings?.valve_auto_active ? 'ENCENDIDA' : 'APAGADA'}
+                </span>
+                <button onClick={saveValveProperties} className="rounded bg-indigo-600 px-3 py-1.5 text-[10px] font-bold text-white hover:bg-indigo-700">
+                  Guardar propiedades
+                </button>
               </div>
             </div>
             <div className="border-t border-slate-100 dark:border-slate-700/80 pt-2 flex flex-col gap-1 text-[9px] text-slate-400 dark:text-slate-500">
